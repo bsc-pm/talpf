@@ -106,6 +106,7 @@ private:
     size_t       m_maxMsgSize; 
     size_t       m_minNrMsgs;
     size_t       m_maxSrs; // maximum number of sends requests per QP  
+    size_t	 m_numMsgs;
 
     shared_ptr< struct ibv_context > m_device; // device handle
     shared_ptr< struct ibv_pd >      m_pd;     // protection domain
