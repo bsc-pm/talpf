@@ -280,6 +280,15 @@ void MessageQueue :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
         }
         else
         {
+#ifdef LPF_CORE_MPI_USES_ibverbs
+            m_ibverbs.get(srcPid, 
+                m_memreg.getVerbID( srcSlot),
+                srcOffset,
+                m_memreg.getVerbID( dstSlot),
+                dstOffset,
+                size );
+            return;
+#endif
             using mpi::ipc::newMsg;
 
             if (size <= m_tinyMsgSize )
@@ -316,27 +325,24 @@ void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
         pid_t dstPid, memslot_t dstSlot, size_t dstOffset, size_t size )
 {
 
-fprintf(stderr, "Start MsgPut\n");
     if (size > 0)
     {
         ASSERT( ! m_memreg.isLocalSlot( dstSlot ) );
         void * address = m_memreg.getAddress( srcSlot, srcOffset );
         if ( dstPid == static_cast<pid_t>(m_pid) )
         {
-fprintf(stderr, "Local MsgPut\n");
             std::memcpy( m_memreg.getAddress( dstSlot, dstOffset), address, size);
         }
         else
         {
-fprintf(stderr, "Remote MsgPut\n");
 #ifdef LPF_CORE_MPI_USES_ibverbs
-        m_ibverbs.put( m_memreg.getVerbID( srcSlot),
-            srcOffset,
-            dstPid,
-            m_memreg.getVerbID( dstSlot),
-            dstOffset,
-            size );
-return;
+            m_ibverbs.put( m_memreg.getVerbID( srcSlot),
+                srcOffset,
+                dstPid,
+                m_memreg.getVerbID( dstSlot),
+                dstOffset,
+                size );
+             return;
 #endif
         }
     }

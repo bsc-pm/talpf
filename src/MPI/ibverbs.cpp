@@ -402,7 +402,6 @@ void IBVerbs :: resizeMemreg( size_t size )
 
 void IBVerbs :: resizeMesgq( size_t size )
 {
-fprintf(stderr,"(i)resize %d\n", size);
     ASSERT( m_srs.max_size() > m_minNrMsgs );
     if (!m_cq) { //Create only one time
         m_cq.reset( ibv_create_cq( m_device.get(), size, NULL, NULL, 0) );
@@ -423,7 +422,6 @@ fprintf(stderr,"(i)resize %d\n", size);
     stageQPs(size);
     LOG(4, "Message queue has been reallocated to size " << size );
 
-fprintf(stderr,"(i)resize done\n");
 }
 
 IBVerbs :: SlotID IBVerbs :: regLocal( void * addr, size_t size )
@@ -507,7 +505,6 @@ void IBVerbs :: dereg( SlotID id )
 void IBVerbs :: put( SlotID srcSlot, size_t srcOffset, 
               int dstPid, SlotID dstSlot, size_t dstOffset, size_t size )
 {
-fprintf(stderr, "Start put\n");
     const MemorySlot & src = m_memreg.lookup( srcSlot );
     const MemorySlot & dst = m_memreg.lookup( dstSlot );
 
@@ -536,7 +533,6 @@ fprintf(stderr, "Start put\n");
 
 
         bool lastMsg = i == numMsgs-1;
-	if(lastMsg) fprintf(stderr,"IBV_SEND_SIGNALED\n");
         sr->next = lastMsg ? NULL : &srs[i+1]; 
         // since reliable connection guarantees keeps packets in order,
         // we only need a signal from the last message in the queue
@@ -563,7 +559,7 @@ fprintf(stderr, "Start put\n");
         LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
         throw Exception("Error while posting RDMA requests");
     }
-    else m_numMsgs++;
+    else m_numMsgs++; //atomic
 
 }
 
@@ -575,65 +571,70 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 
     ASSERT( dst.mr );
 
-    while (size > 0) {
+    int numMsgs = size/m_maxMsgSize + (size % m_maxMsgSize > 0); //+1 if last msg size < m_maxMsgSize
 
-        struct ibv_sge sge; std::memset(&sge, 0, sizeof(sge));
-        struct ibv_send_wr sr; std::memset(&sr, 0, sizeof(sr));
+    struct ibv_sge     sges[numMsgs];
+    struct ibv_send_wr srs[numMsgs];
+    struct ibv_sge     *sge;
+    struct ibv_send_wr *sr;
+
+    for(int i = 0; i< numMsgs; i++){
+	sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
+	sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
 
         const char * localAddr 
             = static_cast<const char *>(dst.glob[m_pid].addr) + dstOffset;
         const char * remoteAddr 
             = static_cast<const char *>(src.glob[srcPid].addr) + srcOffset;
 
-        sge.addr = reinterpret_cast<uintptr_t>( localAddr );
-        sge.length = std::min<size_t>(size, m_maxMsgSize );
-        sge.lkey = dst.mr->lkey;
-        m_sges.push_back( sge );
+        sge->addr = reinterpret_cast<uintptr_t>( localAddr );
+        sge->length = std::min<size_t>(size, m_maxMsgSize );
+        sge->lkey = dst.mr->lkey;
 
-        bool lastMsg = ! m_activePeers.contains( srcPid );
-        sr.next = lastMsg ? NULL : &m_srs[ m_srsHeads[ srcPid ] ];
+        bool lastMsg =  i == numMsgs-1;
+        sr->next = lastMsg ? NULL : &srs[i+1];
         // since reliable connection guarantees keeps packets in order,
         // we only need a signal from the last message in the queue
-        sr.send_flags = lastMsg ? IBV_SEND_SIGNALED : 0;
+        sr->send_flags = lastMsg ? IBV_SEND_SIGNALED : 0;
 
-        sr.wr_id = 0; // don't need an identifier
-        sr.sg_list = &m_sges.back();
-        sr.num_sge = 1;
-        sr.opcode = IBV_WR_RDMA_READ;
-        sr.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
-        sr.wr.rdma.rkey = src.glob[srcPid].rkey;
+        sr->wr_id = 0; // don't need an identifier
+        sr->sg_list = sge;
+        sr->num_sge = 1;
+        sr->opcode = IBV_WR_RDMA_READ;
+        sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+        sr->wr.rdma.rkey = src.glob[srcPid].rkey;
 
-        m_srsHeads[ srcPid ] = m_srs.size();
-        m_srs.push_back( sr );
-        m_activePeers.insert( srcPid );
-        m_nMsgsPerPeer[ srcPid ] += 1;
-
-        size -= sge.length;
-        srcOffset += sge.length;
-        dstOffset += sge.length;
-        LOG(4, "Enqueued get message of " << sge.length << " bytes from " << srcPid );
+        size -= sge->length;
+        srcOffset += sge->length;
+        dstOffset += sge->length;
     }
+    //Send
+    struct ibv_send_wr *bad_wr = NULL;
+    if (int err = ibv_post_send(m_connectedQps[srcPid].get(), &srs[0], &bad_wr ))
+    {
+        LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
+        throw Exception("Error while posting RDMA requests");
+    }
+    else m_numMsgs++; //atomic
+
 }
 
 void IBVerbs :: sync( bool reconnect )
 {
-fprintf(stderr, "%d\n", reconnect);
     if (reconnect) reconnectQPs();
 
         // wait for completion
-fprintf(stderr, "numMsgs:%d\n", m_numMsgs);
         int n = m_numMsgs;//m_activePeers.size();
         int error = 0;
-	struct ibv_wc wcs[n];
+	struct ibv_wc wcs[64];
         while (n > 0)
         {
             LOG(5, "Polling for " << n << " messages" );
-            int pollResult = ibv_poll_cq(m_cq.get(), n, wcs /*m_wcs.data()*/ );
+            int pollResult = ibv_poll_cq(m_cq.get(), std::min<size_t>(64,n), wcs /*m_wcs.data()*/ );
             if ( pollResult > 0) {
                 LOG(4, "Received " << pollResult << " acknowledgements");
                 n -= pollResult;
 		m_numMsgs -= pollResult; 
-fprintf(stderr, "...numMsgs:%d\n", m_numMsgs);
 	
                 
                 for (int i = 0; i < pollResult ; ++i) {
@@ -655,23 +656,10 @@ fprintf(stderr, "...numMsgs:%d\n", m_numMsgs);
                 throw Exception("Poll CQ failure");
             }
         } 
-fprintf(stderr, "---numMsgs:%d\n", m_numMsgs);
 
         if (error) {
             throw Exception("Error occurred during polling");
         }
-
-        for ( unsigned p = 0; p < m_peerList.size(); ++p) {
-            if (m_nMsgsPerPeer[ m_peerList[p] ] == 0 )
-                m_activePeers.erase( m_peerList[p] );
-        }
-
-    // clear all tables
-    m_activePeers.clear();
-    m_srs.clear();
-    std::fill( m_srsHeads.begin(), m_srsHeads.end(), 0u );
-    std::fill( m_nMsgsPerPeer.begin(), m_nMsgsPerPeer.end(), 0u );
-    m_sges.clear();
 
     // synchronize
     m_comm.barrier();
