@@ -344,6 +344,27 @@ void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
                 size );
              return;
 #endif
+            using mpi::ipc::newMsg;
+            if (size <= m_tinyMsgSize )
+            {
+                newMsg( BufPut, m_tinyMsgBuf.data(), m_tinyMsgBuf.size() )
+                    .write( DstSlot, dstSlot )
+                    .write( DstOffset, dstOffset )
+                    .write( Payload, address, size )
+                    . send( *m_firstQueue, dstPid );
+            }
+            else
+            {
+                newMsg( HpPut, m_tinyMsgBuf.data(), m_tinyMsgBuf.size() )
+                    .write( SrcPid, m_pid )
+                    .write( DstPid, dstPid )
+                    .write( SrcSlot, srcSlot )
+                    .write( DstSlot, dstSlot )
+                    .write( SrcOffset, srcOffset )
+                    .write( DstOffset, dstOffset )
+                    .write( Size, size )
+                    .send( *m_firstQueue, dstPid );
+            }
         }
     }
 }
