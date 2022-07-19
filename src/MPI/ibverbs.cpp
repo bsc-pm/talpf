@@ -176,12 +176,12 @@ IBVerbs :: IBVerbs( Communication & comm )
     LOG(3, "Opened protection domain");
 
     m_numMsgs=0;
-   // m_cq.reset( ibv_create_cq( m_device.get(), m_nprocs, NULL, NULL, 0) ); //tmp cq
-    //if (!m_cq) {
-    //    LOG(1, "Could not allocate completion queue with '"
-        //        << m_nprocs << " entries" );
-      //  throw Exception("Could not allocate completion queue");
-    //}
+    m_cq.reset( ibv_create_cq( m_device.get(), m_nprocs, NULL, NULL, 0) ); //tmp cq
+    if (!m_cq) {
+        LOG(1, "Could not allocate completion queue with '"
+                << m_nprocs << " entries" );
+        throw Exception("Could not allocate completion queue");
+    }
 
     LOG(3, "Allocated completion queue with " << m_nprocs << " entries.");
 
@@ -403,14 +403,9 @@ void IBVerbs :: resizeMemreg( size_t size )
 void IBVerbs :: resizeMesgq( size_t size )
 {
     ASSERT( m_srs.max_size() > m_minNrMsgs );
-    if (!m_cq) { //Create only one time
-        m_cq.reset( ibv_create_cq( m_device.get(), size, NULL, NULL, 0) );
-    }
-    if (!m_cq) {
-        LOG(1, "Could not allocate completion queue with '"
-                << m_nprocs << " entries" );
-        throw Exception("Could not allocate completion queue");
-    }
+    if (m_cq) { 
+	ibv_resize_cq(m_cq.get(), size);
+    }   
     if ( size > m_srs.max_size() - m_minNrMsgs )
     {
         LOG(2, "Could not increase message queue, because integer will overflow");
