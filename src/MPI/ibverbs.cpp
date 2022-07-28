@@ -23,11 +23,12 @@
 #include <stdexcept>
 #include <cstring>
 
+#include <nanos6.h>
+#include <nanos6/library-mode.h>
 
 namespace lpf { namespace mpi {
 
 
-#define CQ_SIZE 128
 struct IBVerbs::Exception : std::runtime_error { 
     Exception(const char * what) : std::runtime_error( what ) {}
 };
@@ -46,6 +47,14 @@ namespace {
     }
 }
 
+void pollingTask(void *args){
+	IBVerbs *v = (IBVerbs *) args;
+	v->doProgress();
+}
+void endPollingTask(void *args){
+//	IBVerbs *v = (IBVerbs *) args;
+}
+
 
 IBVerbs :: IBVerbs( Communication & comm )
     : m_pid( comm.pid() )
@@ -58,18 +67,21 @@ IBVerbs :: IBVerbs( Communication & comm )
     , m_maxMsgSize(0)
     , m_minNrMsgs(0)
     , m_maxSrs(0)
+    , m_numMsgs()
+    //, m_numMsgsSync()
+    , m_recvCount(0)
+    , m_stopProgress(0)
+    , m_postCount(0)
+    , m_memregSize(1)
+    , m_cqSize(1)
     , m_device()
     , m_pd()
-    , m_cq()
+    , m_cqLocal()
+    , m_cqRemote()
     , m_stagedQps( m_nprocs )
     , m_connectedQps( m_nprocs )
-    , m_srs()
-    , m_srsHeads( m_nprocs, 0u )
-    , m_nMsgsPerPeer( m_nprocs, 0u )
     , m_activePeers(0, m_nprocs)
     , m_peerList()
-    , m_sges()
-    , m_wcs(m_nprocs)
     , m_memreg()
     , m_dummyMemReg()
     , m_dummyBuffer() 
@@ -175,13 +187,24 @@ IBVerbs :: IBVerbs( Communication & comm )
 
     LOG(3, "Opened protection domain");
 
-    m_numMsgs=0;
-    m_cq.reset( ibv_create_cq( m_device.get(), m_nprocs, NULL, NULL, 0) ); //tmp cq
-    if (!m_cq) {
+    m_cqLocal.reset( ibv_create_cq( m_device.get(), m_cqSize, NULL, NULL, 0) ); //tmp cq
+    if (!m_cqLocal) {
         LOG(1, "Could not allocate completion queue with '"
                 << m_nprocs << " entries" );
         throw Exception("Could not allocate completion queue");
     }
+    m_cqRemote.reset( ibv_create_cq( m_device.get(), m_cqSize * m_nprocs * m_memregSize, NULL, NULL, 0) ); //tmp cq
+    if (!m_cqRemote) {
+        LOG(1, "Could not allocate completion queue with '"
+                << m_nprocs << " entries" );
+        throw Exception("Could not allocate completion queue");
+    }
+    atomic_init(&m_numMsgs, 0);
+    m_numMsgsSync = (std::atomic_int *) calloc(m_nprocs, sizeof(std::atomic_int)); 
+    for(int i = 0; i < m_nprocs; i++)
+    	atomic_init(&m_numMsgsSync[i], 0);
+
+    nanos6_spawn_function(pollingTask, this, endPollingTask, this, "POLLING_TASK");
 
     LOG(3, "Allocated completion queue with " << m_nprocs << " entries.");
 
@@ -199,7 +222,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 
 IBVerbs :: ~IBVerbs()
 {
-
+	stopProgress();
 }
 
 void IBVerbs :: stageQPs( size_t maxMsgs ) 
@@ -211,10 +234,10 @@ void IBVerbs :: stageQPs( size_t maxMsgs )
 
         attr.qp_type = IBV_QPT_RC; // we want reliable connection
         attr.sq_sig_all = 0; // only wait for selected messages
-        attr.send_cq = m_cq.get();
-        attr.recv_cq = m_cq.get();
+        attr.send_cq = m_cqLocal.get();
+        attr.recv_cq = m_cqRemote.get();
         attr.cap.max_send_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs);
-        attr.cap.max_recv_wr = 1; // one for the dummy 
+        attr.cap.max_recv_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs); // one for the dummy 
         attr.cap.max_send_sge = 1;
         attr.cap.max_recv_sge = 1;
 
@@ -380,8 +403,86 @@ void IBVerbs :: reconnectQPs()
     m_comm.barrier();
 }
 
+
+
+void IBVerbs :: doLocalProgress(){
+    int n = m_numMsgs;
+    int error = 0;
+    struct ibv_wc wcs[64];
+
+
+    LOG(5, "Polling for " << n << " messages" );
+    int pollResult = ibv_poll_cq(m_cqLocal.get(), std::min<size_t>(64,n), wcs);
+    if (pollResult > 0) {
+        LOG(4, "Received " << pollResult << " acknowledgements");
+        atomic_fetch_sub(&m_numMsgs, pollResult);
+	
+        for (int i = 0; i < pollResult ; ++i) {
+            if (wcs[i].status != IBV_WC_SUCCESS) 
+            {
+                 LOG( 2, "Got bad completion status from IB message."
+                    " status = 0x" << std::hex << wcs[i].status
+                    << ", vendor syndrome = 0x" << std::hex
+                    << wcs[i].vendor_err );
+                error = 1;
+            }
+            else {
+                nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
+            }
+        }
+    }
+    else if (pollResult < 0) 
+    {
+        LOG( 1, "Failed to poll IB completion queue" );
+        throw Exception("Poll CQ failure");
+    }
+    if (error) {
+        throw Exception("Error occurred during polling");
+    }
+}
+
+void IBVerbs :: doRemoteProgress(){
+    //int error = 0;
+    struct ibv_wc wcs[64];
+
+
+    struct ibv_recv_wr wr;
+    struct ibv_sge sg;
+    struct ibv_recv_wr *bad_wr;
+
+
+    int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64,m_nprocs), wcs);
+    for(int i = 0; i < pollResult; i++){
+        m_recvCount++;
+        sg.addr = (uint64_t) NULL;
+        sg.length = 0;
+        sg.lkey = wcs[i].imm_data;
+        wr.next = NULL;
+        wr.sg_list = &sg;
+        wr.num_sge = 0;
+    	wr.wr_id = wcs[i].wr_id;
+        ibv_post_recv(m_connectedQps[wcs[i].wr_id].get(), &wr, &bad_wr);
+    }
+}
+
+void IBVerbs :: doProgress(){
+    
+    while(!m_stopProgress){
+	doLocalProgress();
+	doRemoteProgress();
+
+	nanos6_wait_for(500);
+    }
+}
+
+void IBVerbs :: stopProgress(){
+	m_stopProgress = 1;
+}
+
+
 void IBVerbs :: resizeMemreg( size_t size )
 {
+    m_memregSize = size;
     if ( size > size_t(std::numeric_limits<int>::max()) )
     {
         LOG(2, "Could not expand memory register, because integer will overflow");
@@ -398,23 +499,39 @@ void IBVerbs :: resizeMemreg( size_t size )
     MemorySlot dflt; dflt.glob.resize( m_nprocs, null );
 
     m_memreg.reserve( size, dflt );
+
+
+    //the size of the remote cq is dependant of the memory registers, so we need to resize also here
+    if(m_cqSize*m_nprocs*size >= m_postCount){
+        if (m_cqRemote) { 
+	    ibv_resize_cq(m_cqRemote.get(), m_cqSize * m_nprocs * size);
+        }   
+    }
+    else{
+	//TODO: destroy & create
+    }
 }
 
 void IBVerbs :: resizeMesgq( size_t size )
 {
-    ASSERT( m_srs.max_size() > m_minNrMsgs );
-    if (m_cq) { 
-	ibv_resize_cq(m_cq.get(), size);
+    m_cqSize = size;
+    if (m_cqLocal) { 
+        ibv_resize_cq(m_cqLocal.get(), size);
     }   
-    if ( size > m_srs.max_size() - m_minNrMsgs )
-    {
-        LOG(2, "Could not increase message queue, because integer will overflow");
-        throw Exception("Could not increase message queue");
+
+    if(size*m_nprocs*m_memregSize >= m_postCount){
+        if (m_cqRemote) { 
+	    ibv_resize_cq(m_cqRemote.get(), size * m_nprocs * m_memregSize);
+        }   
+    }
+    else{
+	//TODO: destroy & create
     }
 
-    m_srs.reserve( size + m_minNrMsgs );
-    m_sges.reserve( size + m_minNrMsgs );
     stageQPs(size);
+
+
+
     LOG(4, "Message queue has been reallocated to size " << size );
 
 }
@@ -486,8 +603,26 @@ IBVerbs :: SlotID IBVerbs :: regGlobal( void * addr, size_t size )
 
     LOG(4, "All-gathering memory register data" );
 
+    struct ibv_recv_wr wr;
+    struct ibv_sge sg;
+    struct ibv_recv_wr *bad_wr;
+    sg.addr = (uint64_t) NULL;
+    sg.length = 0;
+    sg.lkey = local.lkey;
+    wr.next = NULL;
+    wr.sg_list = &sg;
+    wr.num_sge = 0;
+    for(int i = 0; i < (int)m_cqSize; ++i){
+        for(int j= 0; j < m_nprocs; j++){
+    	    wr.wr_id = j;
+            ibv_post_recv(m_connectedQps[j].get(), &wr, &bad_wr);
+            m_postCount++;
+       }
+    }
+
     m_comm.allgather( local, ref.glob.data() );
     LOG(4, "Memory area " << addr << " of size " << size << " has been globally registered. Slot = " << id );
+
     return id;
 }
 
@@ -496,6 +631,7 @@ void IBVerbs :: dereg( SlotID id )
     m_memreg.removeReg( id );
     LOG(4, "Memory area of slot " << id << " has been deregistered");
 }
+
 
 void IBVerbs :: put( SlotID srcSlot, size_t srcOffset, 
               int dstPid, SlotID dstSlot, size_t dstOffset, size_t size )
@@ -507,8 +643,8 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 
     int numMsgs = size/m_maxMsgSize + (size % m_maxMsgSize > 0); //+1 if last msg size < m_maxMsgSize
 
-    struct ibv_sge     sges[numMsgs];
-    struct ibv_send_wr srs[numMsgs];
+    struct ibv_sge     sges[numMsgs+1];
+    struct ibv_send_wr srs[numMsgs+1];
     struct ibv_sge     *sge;
     struct ibv_send_wr *sr;
 
@@ -525,18 +661,20 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
         sge->addr = reinterpret_cast<uintptr_t>( localAddr );
         sge->length = std::min<size_t>(size, m_maxMsgSize );
         sge->lkey = src.mr->lkey;
-
+	
 
         bool lastMsg = i == numMsgs-1;
-        sr->next = lastMsg ? NULL : &srs[i+1]; 
+        sr->next = &srs[i+1]; 
         // since reliable connection guarantees keeps packets in order,
         // we only need a signal from the last message in the queue
-        sr->send_flags = lastMsg ? IBV_SEND_SIGNALED : 0;
+        sr->send_flags = 0;
 
-        sr->wr_id = 0; // don't need an identifier
+        sr->wr_id = m_pid; 
+
         sr->sg_list = sge;
         sr->num_sge = 1;
-        sr->opcode = IBV_WR_RDMA_WRITE;
+        sr->opcode = lastMsg ? IBV_WR_RDMA_WRITE_WITH_IMM : IBV_WR_RDMA_WRITE;
+	sr->imm_data = dst.glob[dstPid].lkey;
         sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
         sr->wr.rdma.rkey = dst.glob[dstPid].rkey;
 
@@ -546,6 +684,30 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
         dstOffset += sge->length;
 
     }
+
+    // add extra "message" to do the local completion with the counter
+    sge = &sges[numMsgs]; std::memset(sge, 0, sizeof(ibv_sge));
+    sr = &srs[numMsgs]; std::memset(sr, 0, sizeof(ibv_send_wr));
+    
+    const char * localAddr = static_cast<const char *>(src.glob[m_pid].addr);
+    const char * remoteAddr = static_cast<const char *>(dst.glob[dstPid].addr);
+
+    sge->addr = reinterpret_cast<uintptr_t>( localAddr );
+    sge->length = 0;
+    sge->lkey = src.mr->lkey;
+
+    void *counter = nanos6_get_current_event_counter(); 
+    nanos6_increase_current_task_event_counter(counter, 1);
+    sr->wr_id = (uint64_t)(counter); 
+    sr->next = NULL;
+    sr->send_flags = IBV_SEND_SIGNALED;
+    sr->sg_list = sge;
+    sr->num_sge = 1;
+    sr->opcode = IBV_WR_RDMA_WRITE;
+    sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+    sr->wr.rdma.rkey = dst.glob[dstPid].rkey;
+
+    
     
     //Send
     struct ibv_send_wr *bad_wr = NULL;
@@ -554,7 +716,10 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
         LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
         throw Exception("Error while posting RDMA requests");
     }
-    else m_numMsgs++; //atomic
+    else{
+         atomic_fetch_add(&m_numMsgs, 1);
+         atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
+    }
 
 }
 
@@ -568,8 +733,8 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 
     int numMsgs = size/m_maxMsgSize + (size % m_maxMsgSize > 0); //+1 if last msg size < m_maxMsgSize
 
-    struct ibv_sge     sges[numMsgs];
-    struct ibv_send_wr srs[numMsgs];
+    struct ibv_sge     sges[numMsgs+1];
+    struct ibv_send_wr srs[numMsgs+1];
     struct ibv_sge     *sge;
     struct ibv_send_wr *sr;
 
@@ -586,16 +751,17 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
         sge->length = std::min<size_t>(size, m_maxMsgSize );
         sge->lkey = dst.mr->lkey;
 
-        bool lastMsg =  i == numMsgs-1;
-        sr->next = lastMsg ? NULL : &srs[i+1];
+   //     bool lastMsg =  i == numMsgs-1;
+        sr->next = &srs[i+1];
         // since reliable connection guarantees keeps packets in order,
         // we only need a signal from the last message in the queue
-        sr->send_flags = lastMsg ? IBV_SEND_SIGNALED : 0;
+        sr->send_flags = 0;
 
-        sr->wr_id = 0; // don't need an identifier
+        sr->wr_id = m_pid; 
+
         sr->sg_list = sge;
         sr->num_sge = 1;
-        sr->opcode = IBV_WR_RDMA_READ;
+        sr->opcode = IBV_WR_RDMA_READ; //TODO:  There is no READ_WITH_IMM //lastMsg ? IBV_WR_RDMA_READ_WITH_IMM : IBV_WR_RDMA_READ;
         sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
         sr->wr.rdma.rkey = src.glob[srcPid].rkey;
 
@@ -603,6 +769,28 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
         srcOffset += sge->length;
         dstOffset += sge->length;
     }
+
+    // add extra "message" to do the local completion with the counter
+    sge = &sges[numMsgs]; std::memset(sge, 0, sizeof(ibv_sge));
+    sr = &srs[numMsgs]; std::memset(sr, 0, sizeof(ibv_send_wr));
+    
+    const char * localAddr = static_cast<const char *>(dst.glob[m_pid].addr);
+    const char * remoteAddr = static_cast<const char *>(src.glob[srcPid].addr);
+
+    sge->addr = reinterpret_cast<uintptr_t>( localAddr );
+    sge->length = 0;
+    sge->lkey = dst.mr->lkey;
+
+    void *counter = nanos6_get_current_event_counter(); 
+    nanos6_increase_current_task_event_counter(counter, 1);
+    sr->wr_id = (uint64_t)(counter); 
+    sr->next = NULL;
+    sr->send_flags = IBV_SEND_SIGNALED;
+    sr->sg_list = sge;
+    sr->num_sge = 1;
+    sr->opcode = IBV_WR_RDMA_READ;
+    sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+    sr->wr.rdma.rkey = src.glob[srcPid].rkey;
     //Send
     struct ibv_send_wr *bad_wr = NULL;
     if (int err = ibv_post_send(m_connectedQps[srcPid].get(), &srs[0], &bad_wr ))
@@ -610,7 +798,10 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
         LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
         throw Exception("Error while posting RDMA requests");
     }
-    else m_numMsgs++; //atomic
+    else{
+         atomic_fetch_add(&m_numMsgs, 1);
+         //atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
+    }
 
 }
 
@@ -618,45 +809,30 @@ void IBVerbs :: sync( bool reconnect )
 {
     if (reconnect) reconnectQPs();
 
-        // wait for completion
-        int n = m_numMsgs;//m_activePeers.size();
-        int error = 0;
-	struct ibv_wc wcs[64];
-        while (n > 0)
-        {
-            LOG(5, "Polling for " << n << " messages" );
-            int pollResult = ibv_poll_cq(m_cq.get(), std::min<size_t>(64,n), wcs /*m_wcs.data()*/ );
-            if ( pollResult > 0) {
-                LOG(4, "Received " << pollResult << " acknowledgements");
-                n -= pollResult;
-		m_numMsgs -= pollResult; 
-	
-                
-                for (int i = 0; i < pollResult ; ++i) {
-                    if (/*m_wcs*/wcs[i].status != IBV_WC_SUCCESS) 
-                    {
-                        fprintf(stderr, "Got bad completion status from IB message."
-                                " status = 0x%x, vendor syndrome = 0x%x\n", m_wcs[i].status, m_wcs[i].vendor_err );
-                        LOG( 2, "Got bad completion status from IB message."
-                                " status = 0x" << std::hex << m_wcs[i].status
-                                << ", vendor syndrome = 0x" << std::hex
-                                << m_wcs[i].vendor_err );
-                        error = 1;
-                    }
-                }
-            }
-            else if (pollResult < 0) 
-            {
-                LOG( 1, "Failed to poll IB completion queue" );
-                throw Exception("Poll CQ failure");
-            }
-        } 
+    //get num remote completions
+    int x = 0;
+    for(int i = 0; i < m_nprocs; i++){
+	if(i == m_pid) x = m_comm.allreduceSum(m_numMsgsSync[i]);
+	else m_comm.allreduceSum(m_numMsgsSync[i]);
+    }
+    // wait for x remote completions
+    while(m_recvCount < x);
+    if (m_recvCount > x) //Print waring
+        fprintf(stderr, "There are more remote completions than the exxpected\n"); //TODO: log
 
-        if (error) {
-            throw Exception("Error occurred during polling");
-        }
+    m_recvCount -= x;
 
+    if(m_numMsgs > 0) {
+        fprintf(stderr, "There are some RMA operations that still didn't finished, \
+            there may be a problem with the dependencies\n"); //TODO: log
+        //assert(m_numMsgs > 0);
+        // wait for local completion
+        while (m_numMsgs > 0);
+    }
     // synchronize
+    for(int i = 0; i < m_nprocs; i++)
+        m_numMsgsSync[i] = 0;
+
     m_comm.barrier();
 }
 

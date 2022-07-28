@@ -18,6 +18,7 @@
 #ifndef LPF_CORE_MPI_IBVERBS_HPP
 #define LPF_CORE_MPI_IBVERBS_HPP
 
+#include <atomic>
 #include <string>
 #include <vector>
 #if __cplusplus >= 201103L    
@@ -73,12 +74,18 @@ public:
     // 'Reconnect' must be a globally replicated value
     void sync( bool reconnect);
 
+    void doProgress();
+    void stopProgress();
 private:
+
     IBVerbs & operator=(const IBVerbs & ); // assignment prohibited
     IBVerbs( const IBVerbs & ); // copying prohibited
 
     void stageQPs(size_t maxMsgs ); 
     void reconnectQPs(); 
+
+    void doLocalProgress();
+    void doRemoteProgress();
 
 
     struct MemoryRegistration {
@@ -106,11 +113,19 @@ private:
     size_t       m_maxMsgSize; 
     size_t       m_minNrMsgs;
     size_t       m_maxSrs; // maximum number of sends requests per QP  
-    size_t	 m_numMsgs;
+
+    std::atomic_int	m_numMsgs;
+    std::atomic_int 	*m_numMsgsSync;
+    volatile int	m_recvCount;
+    volatile int	m_stopProgress;
+    size_t		m_postCount;
+    size_t		m_memregSize;
+    size_t		m_cqSize;
 
     shared_ptr< struct ibv_context > m_device; // device handle
     shared_ptr< struct ibv_pd >      m_pd;     // protection domain
-    shared_ptr< struct ibv_cq >      m_cq;     // complation queue
+    shared_ptr< struct ibv_cq >      m_cqLocal;     // complation queue
+    shared_ptr< struct ibv_cq >      m_cqRemote;     // complation queue
 
     // Disconnected queue pairs
     std::vector< shared_ptr< struct ibv_qp > > m_stagedQps; 
@@ -119,14 +134,8 @@ private:
     std::vector< shared_ptr< struct ibv_qp > > m_connectedQps; 
 
 
-    std::vector< struct ibv_send_wr > m_srs; // array of send requests
-    std::vector< size_t >        m_srsHeads; // head of send queue per peer
-    std::vector< size_t >        m_nMsgsPerPeer; // number of messages per peer
     SparseSet< pid_t >           m_activePeers; // 
     std::vector< pid_t >         m_peerList;
-
-    std::vector< struct ibv_sge > m_sges; // array of scatter/gather entries
-    std::vector< struct ibv_wc > m_wcs; // array of work completions
 
     CombinedMemoryRegister< MemorySlot > m_memreg;
 
