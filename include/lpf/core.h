@@ -18,6 +18,14 @@
 #ifndef LPFLIB_CORE_H
 #define LPFLIB_CORE_H
 
+#define LPF_SYNC_BARRIER 	1 << 31
+#define LPF_SYNC_DEFAULT 	0x00 << 29
+#define LPF_SYNC_MSG(N) 	0x01 << 29 + N
+#define LPF_SYNC_CACHED 	0x10 << 29
+
+
+
+
 /**
  * \mainpage Introduction
  *
@@ -1104,7 +1112,7 @@ extern _LPFLIB_VAR const lpf_init_t LPF_INIT_NONE;
  * \par Communication
  * This value must not be communicated.
  */
-extern _LPFLIB_VAR const lpf_sync_attr_t LPF_SYNC_DEFAULT;
+//extern _LPFLIB_VAR const lpf_sync_attr_t LPF_SYNC_DEFAULT;
 
 /**
  * Applies the default semantics of a #lpf_put or #lpf_get.
@@ -1840,6 +1848,18 @@ lpf_err_t lpf_put(
     lpf_msg_attr_t attr
 );
 
+extern _LPFLIB_API
+lpf_err_t talpf_put(
+    lpf_t ctx,
+    lpf_memslot_t src_slot,
+    size_t src_offset,
+    lpf_pid_t dst_pid,
+    lpf_memslot_t dst_slot,
+    size_t dst_offset,
+    size_t size,
+    lpf_msg_attr_t attr
+);
+
 /**
  * Copies contents from remote memory to local memory.
  * This operation completes after one call to lpf_sync(). Until that time it
@@ -1968,6 +1988,17 @@ lpf_err_t lpf_get(
     lpf_msg_attr_t attr
 );
 
+extern _LPFLIB_API
+lpf_err_t talpf_get(
+    lpf_t ctx,
+    lpf_pid_t src_pid,
+    lpf_memslot_t src_slot,
+    size_t src_offset,
+    lpf_memslot_t dst_slot,
+    size_t dst_offset,
+    size_t size,
+    lpf_msg_attr_t attr
+);
 /**
  * Terminate the current computation phase, then execute all globally pending
  * communication requests. The local part of the global communication phase is
@@ -2017,6 +2048,9 @@ lpf_err_t lpf_get(
  */
 extern _LPFLIB_API
 lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
+
+extern _LPFLIB_API
+lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
 
 /**
  * This primitive allows a user to inspect the machine that this LPF program

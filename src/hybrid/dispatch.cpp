@@ -24,7 +24,7 @@ namespace lpf { namespace hybrid {
     const Thread::err_t Thread::ERR_FATAL = GET_THREAD( ERR_FATAL );
 
     const Thread::args_t Thread::NO_ARGS = GET_THREAD( NO_ARGS );
-    const Thread::sync_attr_t Thread::SYNC_DEFAULT = GET_THREAD( SYNC_DEFAULT );
+    //const Thread::sync_attr_t Thread::SYNC_DEFAULT = GET_THREAD( SYNC_DEFAULT );
     const Thread::msg_attr_t Thread::MSG_DEFAULT = GET_THREAD( MSG_DEFAULT );
     const Thread::pid_t Thread::MAX_P = GET_THREAD( MAX_P );
 
@@ -39,7 +39,7 @@ namespace lpf { namespace hybrid {
     const MPI::err_t MPI::ERR_FATAL = GET_MPI( ERR_FATAL );
 
     const MPI::args_t MPI::NO_ARGS = GET_MPI( NO_ARGS );
-    const MPI::sync_attr_t MPI::SYNC_DEFAULT = GET_MPI( SYNC_DEFAULT );
+    //const MPI::sync_attr_t MPI::SYNC_DEFAULT = GET_MPI( SYNC_DEFAULT );
     const MPI::msg_attr_t MPI::MSG_DEFAULT = GET_MPI( MSG_DEFAULT );
     const MPI::pid_t MPI::MAX_P = GET_MPI( MAX_P );
 

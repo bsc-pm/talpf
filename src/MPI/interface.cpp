@@ -100,6 +100,16 @@ void Interface :: put( memslot_t srcSlot, size_t srcOffset,
             size );
 }
 
+
+void Interface :: taput( memslot_t srcSlot, size_t srcOffset, 
+        pid_t dstPid, memslot_t dstSlot, size_t dstOffset,
+        size_t size ) 
+{
+    m_mesgQueue.taput( srcSlot, srcOffset,
+            dstPid, dstSlot, dstOffset, 
+            size );
+}
+
 void Interface :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset, 
         memslot_t dstSlot, size_t dstOffset,
         size_t size )
@@ -108,6 +118,16 @@ void Interface :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
             dstSlot, dstOffset,
             size );
 }
+
+void Interface :: taget( pid_t srcPid, memslot_t srcSlot, size_t srcOffset, 
+        memslot_t dstSlot, size_t dstOffset,
+        size_t size )
+{
+    m_mesgQueue.taget( srcPid, srcSlot, srcOffset,
+            dstSlot, dstOffset,
+            size );
+}
+
 
 memslot_t Interface :: registerGlobal( void * mem, size_t size )
 {
@@ -152,6 +172,24 @@ err_t Interface ::  sync()
     if ( 0 == m_aborted )
     {
         m_aborted = m_mesgQueue.sync( false );
+    }
+    
+    if ( 0 == m_aborted )
+    {
+        return LPF_SUCCESS;
+    }
+    else
+    {
+        return LPF_ERR_FATAL;
+    }
+}
+
+err_t Interface ::  tasync(lpf_sync_attr_t attr)
+{
+    if ( 0 == m_aborted )
+    {
+        m_aborted = m_mesgQueue.tasync( false, attr );
+        //m_aborted = m_mesgQueue.tasync( false, attr );
     }
     
     if ( 0 == m_aborted )

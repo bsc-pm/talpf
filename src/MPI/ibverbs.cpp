@@ -631,9 +631,13 @@ void IBVerbs :: dereg( SlotID id )
     m_memreg.removeReg( id );
     LOG(4, "Memory area of slot " << id << " has been deregistered");
 }
-
-
 void IBVerbs :: put( SlotID srcSlot, size_t srcOffset, 
+              int dstPid, SlotID dstSlot, size_t dstOffset, size_t size )
+{
+//TODO: original put
+    taput(srcSlot, srcOffset, dstPid, dstSlot, dstOffset, size);
+}
+void IBVerbs :: taput( SlotID srcSlot, size_t srcOffset, 
               int dstPid, SlotID dstSlot, size_t dstOffset, size_t size )
 {
     const MemorySlot & src = m_memreg.lookup( srcSlot );
@@ -722,8 +726,13 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
     }
 
 }
-
 void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset, 
+              SlotID dstSlot, size_t dstOffset, size_t size )
+{
+//TODO: original get
+    taget(srcPid, srcSlot, srcOffset, dstSlot, dstOffset, size);
+}
+void IBVerbs :: taget( int srcPid, SlotID srcSlot, size_t srcOffset, 
               SlotID dstSlot, size_t dstOffset, size_t size )
 {
     const MemorySlot & src = m_memreg.lookup( srcSlot );
@@ -791,6 +800,7 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
     sr->opcode = IBV_WR_RDMA_READ;
     sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
     sr->wr.rdma.rkey = src.glob[srcPid].rkey;
+
     //Send
     struct ibv_send_wr *bad_wr = NULL;
     if (int err = ibv_post_send(m_connectedQps[srcPid].get(), &srs[0], &bad_wr ))
@@ -805,7 +815,13 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 
 }
 
-void IBVerbs :: sync( bool reconnect )
+
+void IBVerbs :: sync( bool reconnect)
+{
+//TODO: original sync
+    tasync(reconnect, 0);
+}
+void IBVerbs :: tasync( bool reconnect, int attr )
 {
     if (reconnect) reconnectQPs();
 

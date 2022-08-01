@@ -280,15 +280,6 @@ void MessageQueue :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
         }
         else
         {
-#ifdef LPF_CORE_MPI_USES_ibverbs
-            m_ibverbs.get(srcPid, 
-                m_memreg.getVerbID( srcSlot),
-                srcOffset,
-                m_memreg.getVerbID( dstSlot),
-                dstOffset,
-                size );
-            return;
-#endif
             using mpi::ipc::newMsg;
 
             if (size <= m_tinyMsgSize )
@@ -321,6 +312,22 @@ void MessageQueue :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
     }
 }
 
+
+
+void MessageQueue :: taget( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
+        memslot_t dstSlot, size_t dstOffset, size_t size )
+{
+#ifdef LPF_CORE_MPI_USES_ibverbs
+            m_ibverbs.taget(srcPid, 
+                m_memreg.getVerbID( srcSlot),
+                srcOffset,
+                m_memreg.getVerbID( dstSlot),
+                dstOffset,
+                size );
+#endif
+}
+
+
 void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
         pid_t dstPid, memslot_t dstSlot, size_t dstOffset, size_t size )
 {
@@ -335,15 +342,6 @@ void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
         }
         else
         {
-#ifdef LPF_CORE_MPI_USES_ibverbs
-            m_ibverbs.put( m_memreg.getVerbID( srcSlot),
-                srcOffset,
-                dstPid,
-                m_memreg.getVerbID( dstSlot),
-                dstOffset,
-                size );
-             return;
-#endif
             using mpi::ipc::newMsg;
             if (size <= m_tinyMsgSize )
             {
@@ -367,6 +365,21 @@ void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
             }
         }
     }
+}
+
+void MessageQueue :: taput( memslot_t srcSlot, size_t srcOffset,
+        pid_t dstPid, memslot_t dstSlot, size_t dstOffset, size_t size )
+{
+#ifdef LPF_CORE_MPI_USES_ibverbs
+            m_ibverbs.taput( m_memreg.getVerbID( srcSlot),
+                srcOffset,
+                dstPid,
+                m_memreg.getVerbID( dstSlot),
+                dstOffset,
+                size );
+#else
+	//TODO: ERR
+#endif
 }
 
 int MessageQueue :: sync( bool abort )
@@ -394,68 +407,9 @@ int MessageQueue :: sync( bool abort )
         return m_vote[0];
     }
     m_resized = (m_vote[1] > 0);
-    // Synchronize the memory registrations
-/*----------------------REMOVED----------*/    
-/*
-#if defined LPF_CORE_MPI_USES_mpirma || defined LPF_CORE_MPI_USES_ibverbs
-    if (m_resized) {
-        if (m_edgeBufferSlot != m_memreg.invalidSlot())
-        {
-            m_memreg.remove( m_edgeBufferSlot );
-            m_edgeBufferSlot = m_memreg.invalidSlot();
-        }
-        ASSERT( m_edgeBufferSlot == m_memreg.invalidSlot() );
-
-        LOG(4, "Registering edge buffer slot of size "
-                << m_edgeBuffer.capacity() );
-
-        m_edgeBufferSlot
-           = m_memreg.addGlobal(m_edgeBuffer.data(), m_edgeBuffer.capacity());
-    }
-#endif
-*/
 
     LOG(4, "Syncing memory table" );
     m_memreg.sync();
-
-    // shrink memory register if necessary
-/*----------------------REMOVED----------*/    
-
-
-//    LOG(4, "Processing message meta-data" );
-
-
-    // 2. Schedule unbuffered comm for write conflict resolution,
-    //    and process buffered communication
-	
-/*----------------------REMOVED----------*/    
-
-    LOG(4, "Processing message edges" );
-
-    /* Figure out which edge requests require further processing */
-/*----------------------REMOVED----------*/    
-
-    LOG(4, "resolving write conflicts" );
-
-    // 3. Read out the conflict free message requests, and adjust them
-    // note: this may double the number of messages!
-/*----------------------REMOVED----------*/    
-
-    LOG(4, "Processing message meta-data" );
-    // 5. Execute buffered gets and process get edges
-    //  postpone unbuffered comm just a little while.
-
-/*----------------------REMOVED----------*/    
-
-    // 6. Execute unbuffered communications
-/*----------------------REMOVED----------*/    
-
-
-/*----------------------REMOVED----------*/    
-
-/*----------------------REMOVED----------*/    
-
-/*----------------------REMOVED----------*/    
 
 
 #ifdef LPF_CORE_MPI_USES_mpimsg
@@ -470,12 +424,6 @@ int MessageQueue :: sync( bool abort )
 #ifdef LPF_CORE_MPI_USES_ibverbs
     m_ibverbs.sync( m_resized );
 #endif
-    LOG(4, "Copying edges" );
-
-    /* 8. now copy the edges */
-/*----------------------REMOVED----------*/    
-
-    LOG(4, "Cleaning up");
 
     m_firstQueue->clear();
     m_secondQueue->clear();
@@ -493,7 +441,38 @@ int MessageQueue :: sync( bool abort )
     return 0;
 }
 
+int MessageQueue :: tasync( bool abort, lpf_sync_attr_t attr )
+{
+    const int trials = 5;
+    bool randomize = false;
+    m_vote[0] = abort?1:0;
+    m_vote[1] = m_resized?1:0;
+    LOG(4, "Executing 1st meta-data exchange");
+    if ( m_firstQueue->exchange(m_comm, randomize, m_vote.data(), trials) )
+    {
+        LOG(2, "All " << trials << " sparse all-to-all attempts have failed");
+        throw std::runtime_error("All sparse all-to-all attempts have failed");
+    }
+
+    if ( m_vote[0] != 0 ) {
+        LOG(2, "Abort detected by sparse all-to-all");
+        return m_vote[0];
+    }
+    m_resized = (m_vote[1] > 0);
+
+    m_memreg.sync();
+
+#ifdef LPF_CORE_MPI_USES_ibverbs
+    m_ibverbs.tasync( m_resized, attr);
+#endif
+
+    m_firstQueue->clear();
+    m_resized = false;
+    ASSERT( m_firstQueue->empty() );
+    return 0;
+}
 
 
 } // namespace lpf
+
 

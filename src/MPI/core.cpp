@@ -47,7 +47,7 @@ const lpf_err_t LPF_ERR_FATAL = 2;
 
 const lpf_args_t LPF_NO_ARGS = { NULL, 0, NULL, 0, NULL, 0 };
 
-const lpf_sync_attr_t LPF_SYNC_DEFAULT = 0;
+//const lpf_sync_attr_t LPF_SYNC_DEFAULT = 0;
 
 const lpf_msg_attr_t LPF_MSG_DEFAULT = 0;
 
@@ -235,6 +235,23 @@ lpf_err_t lpf_put( lpf_t ctx,
     return LPF_SUCCESS;
 }
 
+lpf_err_t talpf_put( lpf_t ctx,
+                       lpf_memslot_t src_slot, 
+                       size_t src_offset,
+                       lpf_pid_t dst_pid, 
+                       lpf_memslot_t dst_slot, 
+                       size_t dst_offset, 
+                       size_t size, 
+                       lpf_msg_attr_t attr
+)
+{
+    (void) attr; // ignore parameter 'msg' since this implementation only 
+                 // implements core functionality
+    lpf::Interface * i = realContext(ctx);
+    if (!i->isAborted())
+        i->taput( src_slot, src_offset, dst_pid, dst_slot, dst_offset, size );
+    return LPF_SUCCESS;
+}
 
 lpf_err_t lpf_get(
     lpf_t ctx, 
@@ -255,11 +272,36 @@ lpf_err_t lpf_get(
     return LPF_SUCCESS;
 }
 
+lpf_err_t talpf_get(
+    lpf_t ctx, 
+    lpf_pid_t pid, 
+    lpf_memslot_t src, 
+    size_t src_offset, 
+    lpf_memslot_t dst, 
+    lpf_memslot_t dst_offset,
+    size_t size,
+    lpf_msg_attr_t attr
+)
+{
+    (void) attr; // ignore parameter 'msg' since this implementation only 
+                 // implements core functionality
+    lpf::Interface * i = realContext(ctx);
+    if (!i->isAborted())
+        i->taget( pid, src, src_offset, dst, dst_offset, size );
+    return LPF_SUCCESS;
+}
+
 lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr )
 {
     (void) attr; // ignore attr parameter since this implementation only
                  // implements core functionality
     return realContext(ctx)->sync();
+}
+
+
+lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr )
+{
+    return realContext(ctx)->tasync(attr);
 }
 
 lpf_err_t lpf_probe( lpf_t ctx, lpf_machine_t * params )

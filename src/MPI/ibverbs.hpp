@@ -65,14 +65,19 @@ public:
 
     void put( SlotID srcSlot, size_t srcOffset, 
               int dstPid, SlotID dstSlot, size_t dstOffset, size_t size );
+    void taput( SlotID srcSlot, size_t srcOffset, 
+              int dstPid, SlotID dstSlot, size_t dstOffset, size_t size );
 
     void get( int srcPid, SlotID srcSlot, size_t srcOffset, 
+             SlotID dstSlot, size_t dstOffset, size_t size );
+    void taget( int srcPid, SlotID srcSlot, size_t srcOffset, 
               SlotID dstSlot, size_t dstOffset, size_t size );
 
 
     // Do the communication and synchronize
     // 'Reconnect' must be a globally replicated value
     void sync( bool reconnect);
+    void tasync( bool reconnect, int attr );
 
     void doProgress();
     void stopProgress();

@@ -55,12 +55,20 @@ public:
     void get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
             memslot_t dstSlot, size_t dstOffset, size_t size );
 
+    void taget( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
+            memslot_t dstSlot, size_t dstOffset, size_t size );
+
     void put( memslot_t srcSlot, size_t srcOffset,
+            pid_t dstPid, memslot_t dstSlot, size_t dstOffset, size_t size );
+
+    void taput( memslot_t srcSlot, size_t srcOffset,
             pid_t dstPid, memslot_t dstSlot, size_t dstOffset, size_t size );
 
 
     // returns how many processes have entered in an aborted state
     int sync( bool abort );
+
+    int tasync( bool abort, lpf_sync_attr_t attr );
 
 private:
     enum Msgs { BufPut , 
