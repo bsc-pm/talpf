@@ -456,7 +456,7 @@ void IBVerbs :: doRemoteProgress(){
         m_recvCount++;
         sg.addr = (uint64_t) NULL;
         sg.length = 0;
-        sg.lkey = wcs[i].imm_data;
+        sg.lkey = 0;
         wr.next = NULL;
         wr.sg_list = &sg;
         wr.num_sge = 0;
@@ -608,7 +608,7 @@ IBVerbs :: SlotID IBVerbs :: regGlobal( void * addr, size_t size )
     struct ibv_recv_wr *bad_wr;
     sg.addr = (uint64_t) NULL;
     sg.length = 0;
-    sg.lkey = local.lkey;
+    sg.lkey = 0;
     wr.next = NULL;
     wr.sg_list = &sg;
     wr.num_sge = 0;
@@ -647,12 +647,14 @@ void IBVerbs :: taput( SlotID srcSlot, size_t srcOffset,
 
     int numMsgs = size/m_maxMsgSize + (size % m_maxMsgSize > 0); //+1 if last msg size < m_maxMsgSize
 
-    struct ibv_sge     sges[numMsgs+1];
-    struct ibv_send_wr srs[numMsgs+1];
+    struct ibv_sge     sges[numMsgs];
+    struct ibv_send_wr srs[numMsgs];
     struct ibv_sge     *sge;
     struct ibv_send_wr *sr;
 
 
+    void *counter = nanos6_get_current_event_counter(); 
+    nanos6_increase_current_task_event_counter(counter, 1);
     for(int i = 0; i< numMsgs; i++){
 	sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
 	sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
@@ -668,17 +670,17 @@ void IBVerbs :: taput( SlotID srcSlot, size_t srcOffset,
 	
 
         bool lastMsg = i == numMsgs-1;
-        sr->next = &srs[i+1]; 
+        sr->next = lastMsg ? NULL : &srs[i+1]; 
         // since reliable connection guarantees keeps packets in order,
         // we only need a signal from the last message in the queue
-        sr->send_flags = 0;
+        sr->send_flags = lastMsg ? IBV_SEND_SIGNALED : 0 ;
 
-        sr->wr_id = m_pid; 
+        sr->wr_id = (uint64_t)counter; 
 
         sr->sg_list = sge;
         sr->num_sge = 1;
         sr->opcode = lastMsg ? IBV_WR_RDMA_WRITE_WITH_IMM : IBV_WR_RDMA_WRITE;
-	sr->imm_data = dst.glob[dstPid].lkey;
+	sr->imm_data = 0;
         sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
         sr->wr.rdma.rkey = dst.glob[dstPid].rkey;
 
@@ -689,30 +691,6 @@ void IBVerbs :: taput( SlotID srcSlot, size_t srcOffset,
 
     }
 
-    // add extra "message" to do the local completion with the counter
-    sge = &sges[numMsgs]; std::memset(sge, 0, sizeof(ibv_sge));
-    sr = &srs[numMsgs]; std::memset(sr, 0, sizeof(ibv_send_wr));
-    
-    const char * localAddr = static_cast<const char *>(src.glob[m_pid].addr);
-    const char * remoteAddr = static_cast<const char *>(dst.glob[dstPid].addr);
-
-    sge->addr = reinterpret_cast<uintptr_t>( localAddr );
-    sge->length = 0;
-    sge->lkey = src.mr->lkey;
-
-    void *counter = nanos6_get_current_event_counter(); 
-    nanos6_increase_current_task_event_counter(counter, 1);
-    sr->wr_id = (uint64_t)(counter); 
-    sr->next = NULL;
-    sr->send_flags = IBV_SEND_SIGNALED;
-    sr->sg_list = sge;
-    sr->num_sge = 1;
-    sr->opcode = IBV_WR_RDMA_WRITE;
-    sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
-    sr->wr.rdma.rkey = dst.glob[dstPid].rkey;
-
-    
-    
     //Send
     struct ibv_send_wr *bad_wr = NULL;
     if (int err = ibv_post_send(m_connectedQps[dstPid].get(), &srs[0], &bad_wr ))
@@ -770,7 +748,7 @@ void IBVerbs :: taget( int srcPid, SlotID srcSlot, size_t srcOffset,
 
         sr->sg_list = sge;
         sr->num_sge = 1;
-        sr->opcode = IBV_WR_RDMA_READ; //TODO:  There is no READ_WITH_IMM //lastMsg ? IBV_WR_RDMA_READ_WITH_IMM : IBV_WR_RDMA_READ;
+        sr->opcode = IBV_WR_RDMA_READ;
         sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
         sr->wr.rdma.rkey = src.glob[srcPid].rkey;
 
@@ -779,25 +757,27 @@ void IBVerbs :: taget( int srcPid, SlotID srcSlot, size_t srcOffset,
         dstOffset += sge->length;
     }
 
-    // add extra "message" to do the local completion with the counter
+    // add extra "message" to do the local and remote completion
     sge = &sges[numMsgs]; std::memset(sge, 0, sizeof(ibv_sge));
     sr = &srs[numMsgs]; std::memset(sr, 0, sizeof(ibv_send_wr));
     
     const char * localAddr = static_cast<const char *>(dst.glob[m_pid].addr);
     const char * remoteAddr = static_cast<const char *>(src.glob[srcPid].addr);
 
+    void *counter = nanos6_get_current_event_counter(); 
+    nanos6_increase_current_task_event_counter(counter, 1);
+
     sge->addr = reinterpret_cast<uintptr_t>( localAddr );
     sge->length = 0;
     sge->lkey = dst.mr->lkey;
 
-    void *counter = nanos6_get_current_event_counter(); 
-    nanos6_increase_current_task_event_counter(counter, 1);
     sr->wr_id = (uint64_t)(counter); 
     sr->next = NULL;
     sr->send_flags = IBV_SEND_SIGNALED;
     sr->sg_list = sge;
     sr->num_sge = 1;
-    sr->opcode = IBV_WR_RDMA_READ;
+    sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no READ_WITH_IMM 
+    sr->imm_data = 0;
     sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
     sr->wr.rdma.rkey = src.glob[srcPid].rkey;
 
@@ -810,7 +790,7 @@ void IBVerbs :: taget( int srcPid, SlotID srcSlot, size_t srcOffset,
     }
     else{
          atomic_fetch_add(&m_numMsgs, 1);
-         //atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
+         atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
     }
 
 }
@@ -833,7 +813,7 @@ void IBVerbs :: tasync( bool reconnect, int attr )
     }
     // wait for x remote completions
     while(m_recvCount < x);
-    if (m_recvCount > x) //Print waring
+    if (m_recvCount > x) //Print warning
         fprintf(stderr, "There are more remote completions than the exxpected\n"); //TODO: log
 
     m_recvCount -= x;
