@@ -801,22 +801,44 @@ void IBVerbs :: sync( bool reconnect)
 //TODO: original sync
     tasync(reconnect, 0);
 }
+
+#define LPF_SYNC_MODE	 	(0x6 << 27)
 void IBVerbs :: tasync( bool reconnect, int attr )
 {
     if (reconnect) reconnectQPs();
 
-    //get num remote completions
-    int x = 0;
-    for(int i = 0; i < m_nprocs; i++){
-	if(i == m_pid) x = m_comm.allreduceSum(m_numMsgsSync[i]);
-	else m_comm.allreduceSum(m_numMsgsSync[i]);
+    int sync_mode = attr & LPF_SYNC_MODE;
+    int sync_value = attr & ~LPF_SYNC_MODE;
+    int sync_barrier = (attr & LPF_SYNC_BARRIER) | (sync_mode == LPF_SYNC_DEFAULT);
+
+    int remoteMsgs = 0;
+    switch (sync_mode){
+        case LPF_SYNC_DEFAULT:
+            fprintf(stderr, "sync: LPF_SYNC_DEFAULT\n");
+            //get num remote completions
+            for(int i = 0; i < m_nprocs; i++){
+	        if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
+	        else m_comm.allreduceSum(m_numMsgsSync[i]);
+            }
+            break;
+        case LPF_SYNC_CACHED:
+            fprintf(stderr, "sync: LPF_SYNC_CACHED\n");
+            //TODO
+            break;
+        case LPF_SYNC_MSG(0):
+            fprintf(stderr, "sync: LPF_SYNC_MSG(%d)\n", sync_value);
+            remoteMsgs = sync_value;
+            break;
+        default:
+            fprintf(stderr, "sync: UNKNOWN\n");
     }
-    // wait for x remote completions
-    while(m_recvCount < x);
-    if (m_recvCount > x) //Print warning
+
+    // wait for remote completions
+    while(m_recvCount < remoteMsgs);
+    if (m_recvCount > remoteMsgs) //Print warning
         fprintf(stderr, "There are more remote completions than the exxpected\n"); //TODO: log
 
-    m_recvCount -= x;
+    m_recvCount -= remoteMsgs;
 
     if(m_numMsgs > 0) {
         fprintf(stderr, "There are some RMA operations that still didn't finished, \
@@ -829,7 +851,10 @@ void IBVerbs :: tasync( bool reconnect, int attr )
     for(int i = 0; i < m_nprocs; i++)
         m_numMsgsSync[i] = 0;
 
-    m_comm.barrier();
+    if(sync_barrier) {
+        fprintf(stderr, "sync: LPF_SYNC_BARRIER\n");
+        m_comm.barrier();
+    }
 }
 
 
