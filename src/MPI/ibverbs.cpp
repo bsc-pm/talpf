@@ -500,16 +500,6 @@ void IBVerbs :: resizeMemreg( size_t size )
 
     m_memreg.reserve( size, dflt );
 
-
-    //the size of the remote cq is dependant of the memory registers, so we need to resize also here
-    if(m_cqSize*m_nprocs*size >= m_postCount){
-        if (m_cqRemote) { 
-	    ibv_resize_cq(m_cqRemote.get(), m_cqSize * m_nprocs * size);
-        }   
-    }
-    else{
-	//TODO: destroy & create
-    }
 }
 
 void IBVerbs :: resizeMesgq( size_t size )
@@ -518,17 +508,38 @@ void IBVerbs :: resizeMesgq( size_t size )
     if (m_cqLocal) { 
         ibv_resize_cq(m_cqLocal.get(), size);
     }   
-
-    if(size*m_nprocs*m_memregSize >= m_postCount){
+    if(size*m_nprocs >= m_postCount){
         if (m_cqRemote) { 
-	    ibv_resize_cq(m_cqRemote.get(), size * m_nprocs * m_memregSize);
+	    ibv_resize_cq(m_cqRemote.get(), size * m_nprocs);
+        }
+    }
+    stageQPs(size);
+
+    if(size*m_nprocs >= m_postCount){
+        if (m_cqRemote) { 
+            struct ibv_recv_wr wr;
+            struct ibv_sge sg;
+            struct ibv_recv_wr *bad_wr;
+            sg.addr = (uint64_t) NULL;
+            sg.length = 0;
+            sg.lkey = 0;
+            wr.next = NULL;
+            wr.sg_list = &sg;
+            wr.num_sge = 0;
+            
+            for(int i = 0; i < (int)m_cqSize; ++i){
+                for(int j= 0; j < m_nprocs; j++){
+    	            wr.wr_id = j;
+                    ibv_post_recv(m_stagedQps[j].get(), &wr, &bad_wr);
+                    m_postCount++;
+                }
+            }
         }   
     }
     else{
 	//TODO: destroy & create
     }
 
-    stageQPs(size);
 
 
 
@@ -603,22 +614,6 @@ IBVerbs :: SlotID IBVerbs :: regGlobal( void * addr, size_t size )
 
     LOG(4, "All-gathering memory register data" );
 
-    struct ibv_recv_wr wr;
-    struct ibv_sge sg;
-    struct ibv_recv_wr *bad_wr;
-    sg.addr = (uint64_t) NULL;
-    sg.length = 0;
-    sg.lkey = 0;
-    wr.next = NULL;
-    wr.sg_list = &sg;
-    wr.num_sge = 0;
-    for(int i = 0; i < (int)m_cqSize; ++i){
-        for(int j= 0; j < m_nprocs; j++){
-    	    wr.wr_id = j;
-            ibv_post_recv(m_connectedQps[j].get(), &wr, &bad_wr);
-            m_postCount++;
-       }
-    }
 
     m_comm.allgather( local, ref.glob.data() );
     LOG(4, "Memory area " << addr << " of size " << size << " has been globally registered. Slot = " << id );
