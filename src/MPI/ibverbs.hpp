@@ -126,6 +126,8 @@ private:
     size_t		m_postCount;
     size_t		m_memregSize;
     size_t		m_cqSize;
+    bool		m_sync_cached;
+    int 		m_sync_cached_value;
 
     shared_ptr< struct ibv_context > m_device; // device handle
     shared_ptr< struct ibv_pd >      m_pd;     // protection domain

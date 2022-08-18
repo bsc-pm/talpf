@@ -74,6 +74,8 @@ IBVerbs :: IBVerbs( Communication & comm )
     , m_postCount(0)
     , m_memregSize(1)
     , m_cqSize(1)
+    , m_sync_cached(false)
+    , m_sync_cached_value(0)
     , m_device()
     , m_pd()
     , m_cqLocal()
@@ -770,7 +772,7 @@ void IBVerbs :: taget( int srcPid, SlotID srcSlot, size_t srcOffset,
     sr->next = NULL;
     sr->send_flags = IBV_SEND_SIGNALED;
     sr->sg_list = sge;
-    sr->num_sge = 1;
+    sr->num_sge = 0;
     sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no READ_WITH_IMM 
     sr->imm_data = 0;
     sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
@@ -802,6 +804,14 @@ void IBVerbs :: tasync( bool reconnect, int attr )
 {
     if (reconnect) reconnectQPs();
 
+    if(m_numMsgs > 0) {
+        fprintf(stderr, "There are some RMA operations that still didn't finished, \
+            there may be a problem with the dependencies\n"); //TODO: log
+        //assert(m_numMsgs > 0);
+        // wait for local completion
+        while (m_numMsgs > 0);
+    }
+
     int sync_mode = attr & LPF_SYNC_MODE;
     int sync_value = attr & ~LPF_SYNC_MODE;
     int sync_barrier = (attr & LPF_SYNC_BARRIER) | (sync_mode == LPF_SYNC_DEFAULT);
@@ -809,7 +819,7 @@ void IBVerbs :: tasync( bool reconnect, int attr )
     int remoteMsgs = 0;
     switch (sync_mode){
         case LPF_SYNC_DEFAULT:
-            fprintf(stderr, "sync: LPF_SYNC_DEFAULT\n");
+            fprintf(stderr, "%d: sync: LPF_SYNC_DEFAULT\n", m_pid);
             //get num remote completions
             for(int i = 0; i < m_nprocs; i++){
 	        if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
@@ -818,7 +828,19 @@ void IBVerbs :: tasync( bool reconnect, int attr )
             break;
         case LPF_SYNC_CACHED:
             fprintf(stderr, "sync: LPF_SYNC_CACHED\n");
-            //TODO
+            if (m_sync_cached){
+            	//fprintf(stderr, "sync: cached value %d\n", m_sync_cached_value);
+		remoteMsgs = m_sync_cached_value;
+            }
+            else {
+                //get num remote completions
+                for(int i = 0; i < m_nprocs; i++){
+	            if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
+	            else m_comm.allreduceSum(m_numMsgsSync[i]);
+                }
+                m_sync_cached_value = remoteMsgs;
+                m_sync_cached = true;
+            }
             break;
         case LPF_SYNC_MSG(0):
             fprintf(stderr, "sync: LPF_SYNC_MSG(%d)\n", sync_value);
@@ -835,13 +857,6 @@ void IBVerbs :: tasync( bool reconnect, int attr )
 
     m_recvCount -= remoteMsgs;
 
-    if(m_numMsgs > 0) {
-        fprintf(stderr, "There are some RMA operations that still didn't finished, \
-            there may be a problem with the dependencies\n"); //TODO: log
-        //assert(m_numMsgs > 0);
-        // wait for local completion
-        while (m_numMsgs > 0);
-    }
     // synchronize
     for(int i = 0; i < m_nprocs; i++)
         m_numMsgsSync[i] = 0;
