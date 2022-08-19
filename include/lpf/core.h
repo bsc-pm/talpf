@@ -1837,7 +1837,7 @@ lpf_err_t lpf_deregister(
  * See \ref BSPCOSTS.
  */
 extern _LPFLIB_API
-lpf_err_t lpf_put(
+lpf_err_t talpf_put(
     lpf_t ctx,
     lpf_memslot_t src_slot,
     size_t src_offset,
@@ -1849,7 +1849,7 @@ lpf_err_t lpf_put(
 );
 
 extern _LPFLIB_API
-lpf_err_t talpf_put(
+lpf_err_t lpf_put(
     lpf_t ctx,
     lpf_memslot_t src_slot,
     size_t src_offset,
@@ -1977,7 +1977,7 @@ lpf_err_t talpf_put(
  * See \ref BSPCOSTS.
  */
 extern _LPFLIB_API
-lpf_err_t lpf_get(
+lpf_err_t talpf_get(
     lpf_t ctx,
     lpf_pid_t src_pid,
     lpf_memslot_t src_slot,
@@ -1989,7 +1989,7 @@ lpf_err_t lpf_get(
 );
 
 extern _LPFLIB_API
-lpf_err_t talpf_get(
+lpf_err_t lpf_get(
     lpf_t ctx,
     lpf_pid_t src_pid,
     lpf_memslot_t src_slot,
@@ -1999,6 +1999,7 @@ lpf_err_t talpf_get(
     size_t size,
     lpf_msg_attr_t attr
 );
+
 /**
  * Terminate the current computation phase, then execute all globally pending
  * communication requests. The local part of the global communication phase is
@@ -2047,10 +2048,10 @@ lpf_err_t talpf_get(
  * See \ref BSPCOSTS.
  */
 extern _LPFLIB_API
-lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
+lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
 
 extern _LPFLIB_API
-lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
+lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
 
 /**
  * This primitive allows a user to inspect the machine that this LPF program

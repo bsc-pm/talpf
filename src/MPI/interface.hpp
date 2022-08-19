@@ -47,15 +47,7 @@ public:
             pid_t dstPid, memslot_t dstSlot, size_t dstOffset,
             size_t size ) ; // nothrow
 
-    void taput( memslot_t srcSlot, size_t srcOffset, 
-            pid_t dstPid, memslot_t dstSlot, size_t dstOffset,
-            size_t size ) ; // nothrow
-
     void get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset, 
-            memslot_t dstSlot, size_t dstOffset,
-            size_t size ) ;// nothrow
-
-    void taget( pid_t srcPid, memslot_t srcSlot, size_t srcOffset, 
             memslot_t dstSlot, size_t dstOffset,
             size_t size ) ;// nothrow
 
@@ -73,9 +65,7 @@ public:
 
     pid_t isAborted() const ;
  
-    err_t sync(); // nothrow
-
-    err_t tasync(lpf_sync_attr_t attr); // nothrow
+    err_t sync(lpf_sync_attr_t attr); // nothrow
 
     err_t exec( pid_t P, spmd_t spmd, args_t args ) ;
 

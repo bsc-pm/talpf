@@ -101,15 +101,6 @@ void Interface :: put( memslot_t srcSlot, size_t srcOffset,
 }
 
 
-void Interface :: taput( memslot_t srcSlot, size_t srcOffset, 
-        pid_t dstPid, memslot_t dstSlot, size_t dstOffset,
-        size_t size ) 
-{
-    m_mesgQueue.taput( srcSlot, srcOffset,
-            dstPid, dstSlot, dstOffset, 
-            size );
-}
-
 void Interface :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset, 
         memslot_t dstSlot, size_t dstOffset,
         size_t size )
@@ -118,16 +109,6 @@ void Interface :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
             dstSlot, dstOffset,
             size );
 }
-
-void Interface :: taget( pid_t srcPid, memslot_t srcSlot, size_t srcOffset, 
-        memslot_t dstSlot, size_t dstOffset,
-        size_t size )
-{
-    m_mesgQueue.taget( srcPid, srcSlot, srcOffset,
-            dstSlot, dstOffset,
-            size );
-}
-
 
 memslot_t Interface :: registerGlobal( void * mem, size_t size )
 {
@@ -159,7 +140,7 @@ void Interface :: abort()
     ASSERT( 0 == m_aborted );
     // signal all other processes at the start of the next 'sync' that
     // this process aborted.
-    m_aborted = m_mesgQueue.sync( true );
+    m_aborted = m_mesgQueue.sync( true, 0 );
 }
 
 pid_t Interface  :: isAborted() const
@@ -167,28 +148,11 @@ pid_t Interface  :: isAborted() const
     return m_aborted;
 }
 
-err_t Interface ::  sync()
+err_t Interface ::  sync(lpf_sync_attr_t attr)
 {
     if ( 0 == m_aborted )
     {
-        m_aborted = m_mesgQueue.sync( false );
-    }
-    
-    if ( 0 == m_aborted )
-    {
-        return LPF_SUCCESS;
-    }
-    else
-    {
-        return LPF_ERR_FATAL;
-    }
-}
-
-err_t Interface ::  tasync(lpf_sync_attr_t attr)
-{
-    if ( 0 == m_aborted )
-    {
-        m_aborted = m_mesgQueue.tasync( false, attr );
+        m_aborted = m_mesgQueue.sync( false, attr );
         //m_aborted = m_mesgQueue.tasync( false, attr );
     }
     
