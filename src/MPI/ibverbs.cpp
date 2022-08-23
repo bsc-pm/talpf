@@ -224,6 +224,11 @@ IBVerbs :: IBVerbs( Communication & comm )
 	for(int i = 0; i < m_nprocs; i++)
 	atomic_init(&m_numMsgsSync[i], 0);
 
+	syncRequest.isActive = false;
+	syncRequest.withBarrier = false;
+	syncRequest.counter = NULL;
+	syncRequest.barrierRequest = NULL;
+
 	nanos6_spawn_function(pollingTask, this, endPollingTask, this, "POLLING_TASK");
 
 #else
@@ -503,11 +508,53 @@ void IBVerbs :: doRemoteProgress(){
 	}
 }
 
+void IBVerbs :: processSyncRequest(){
+	int flag;
+
+	if(syncRequest.isActive){	
+		if(syncRequest.withBarrier && syncRequest.barrierRequest != NULL) {
+			fprintf(stderr, "Test\n");
+			m_comm.test(syncRequest.barrierRequest, &flag);
+			if(flag == 1){
+				fprintf(stderr, "Done b\n");
+				syncRequest.barrierRequest = NULL;
+				void *counter = syncRequest.counter;
+				syncRequest.counter = NULL;
+				syncRequest.isActive = false;
+				nanos6_decrease_task_event_counter(counter, 1);
+				
+			}
+		}
+		// wait for remote completions
+		else if (m_recvCount >= syncRequest.remoteMsgs){
+			if (m_recvCount > syncRequest.remoteMsgs) //Print warning
+				fprintf(stderr, "There are more remote completions than the expected (%d,%d)\n", m_recvCount, syncRequest.remoteMsgs); //TODO: log
+	
+			m_recvCount -= syncRequest.remoteMsgs;
+			syncRequest.remoteMsgs = 0;
+
+			if (syncRequest.withBarrier) {
+				fprintf(stderr, "Barrier\n");
+				m_comm.getRequest(&syncRequest.barrierRequest);
+				m_comm.ibarrier(syncRequest.barrierRequest);
+			}
+			else {
+				fprintf(stderr, "Done n\n");
+				void *counter = syncRequest.counter;
+				syncRequest.counter = NULL;
+				syncRequest.isActive = false;
+				nanos6_decrease_task_event_counter(counter, 1);
+			}
+		}
+	}
+}
+
 void IBVerbs :: doProgress(){
 	
 	while(!m_stopProgress){
 		doLocalProgress();
 		doRemoteProgress();
+		processSyncRequest();
 
 		nanos6_wait_for(500);
 	}
@@ -691,6 +738,8 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 	struct ibv_sge	   *sge;
 	struct ibv_send_wr *sr;
 
+	atomic_fetch_add(&m_numMsgs, 1);
+	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
 
 	void *counter = nanos6_get_current_event_counter(); 
 	nanos6_increase_current_task_event_counter(counter, 1);
@@ -734,12 +783,11 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 	struct ibv_send_wr *bad_wr = NULL;
 	if (int err = ibv_post_send(m_connectedQps[dstPid].get(), &srs[0], &bad_wr ))
 	{
+		atomic_fetch_sub(&m_numMsgs, 1);
+		atomic_fetch_sub(&m_numMsgsSync[dstPid], 1);
+		
 		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
 		throw Exception("Error while posting RDMA requests");
-	}
-	else{
-		 atomic_fetch_add(&m_numMsgs, 1);
-		 atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
 	}
 #else
 	while (size > 0 ) {
@@ -800,6 +848,9 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	struct ibv_sge	   *sge;
 	struct ibv_send_wr *sr;
 
+	atomic_fetch_add(&m_numMsgs, 1);
+	atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
+
 	for(int i = 0; i< numMsgs; i++){
 	sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
 	sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
@@ -859,12 +910,13 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	struct ibv_send_wr *bad_wr = NULL;
 	if (int err = ibv_post_send(m_connectedQps[srcPid].get(), &srs[0], &bad_wr ))
 	{
+		atomic_fetch_sub(&m_numMsgs, 1);
+		atomic_fetch_sub(&m_numMsgsSync[srcPid], 1);
+
 		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
 		throw Exception("Error while posting RDMA requests");
 	}
 	else{
-		 atomic_fetch_add(&m_numMsgs, 1);
-		 atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
 	}
 #else
 	while (size > 0) {
@@ -911,7 +963,7 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 
 
 #ifdef TASK_AWARENESS
-#define LPF_SYNC_MODE		(0x6 << 27)
+#define LPF_SYNC_MODE		(0x6 << 28)
 #endif
 
 void IBVerbs :: sync( bool reconnect, int attr )
@@ -919,6 +971,7 @@ void IBVerbs :: sync( bool reconnect, int attr )
 	if (reconnect) reconnectQPs();
 
 #ifdef TASK_AWARENESS
+	
 	if(m_numMsgs > 0) {
 		fprintf(stderr, "There are some RMA operations that still didn't finished, \
 			there may be a problem with the dependencies\n"); //TODO: log
@@ -928,43 +981,49 @@ void IBVerbs :: sync( bool reconnect, int attr )
 	}
 
 	int sync_mode = attr & LPF_SYNC_MODE;
-	int sync_value = attr & ~LPF_SYNC_MODE;
-	int sync_barrier = (attr & LPF_SYNC_BARRIER) | (sync_mode == LPF_SYNC_DEFAULT);
+	int sync_value = attr & ~(LPF_SYNC_MODE | LPF_SYNC_BARRIER);
+	int sync_barrier = ((attr & LPF_SYNC_BARRIER) != 0) | (sync_mode == LPF_SYNC_DEFAULT);
 
 	int remoteMsgs = 0;
 	switch (sync_mode){
+		case LPF_SYNC_CACHED:
+			if (m_sync_cached){
+				//fprintf(stderr, "sync: cached value %d\n", m_sync_cached_value);
+				remoteMsgs = m_sync_cached_value;
+				break;
+			}
+			//else
+			m_sync_cached = true;
+			// fall through
 		case LPF_SYNC_DEFAULT:
-			fprintf(stderr, "%d: sync: LPF_SYNC_DEFAULT\n", m_pid);
 			//get num remote completions
 			for(int i = 0; i < m_nprocs; i++){
-		if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
-		else m_comm.allreduceSum(m_numMsgsSync[i]);
+				if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
+				else m_comm.allreduceSum(m_numMsgsSync[i]);
 			}
-			break;
-		case LPF_SYNC_CACHED:
-			fprintf(stderr, "sync: LPF_SYNC_CACHED\n");
-			if (m_sync_cached){
-		//fprintf(stderr, "sync: cached value %d\n", m_sync_cached_value);
-		remoteMsgs = m_sync_cached_value;
-			}
-			else {
-				//get num remote completions
-				for(int i = 0; i < m_nprocs; i++){
-			if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
-			else m_comm.allreduceSum(m_numMsgsSync[i]);
-				}
-				m_sync_cached_value = remoteMsgs;
-				m_sync_cached = true;
-			}
+			m_sync_cached_value = remoteMsgs;
 			break;
 		case LPF_SYNC_MSG(0):
-			fprintf(stderr, "sync: LPF_SYNC_MSG(%d)\n", sync_value);
 			remoteMsgs = sync_value;
 			break;
-		default:
-			fprintf(stderr, "sync: UNKNOWN\n");
 	}
+	for(int i = 0; i < m_nprocs; i++)
+		m_numMsgsSync[i] = 0;
 
+
+	if(syncRequest.isActive) {
+		fprintf(stderr, "There is another sync request active\n");
+		throw Exception("There is another sync request active");
+	}
+	
+	syncRequest.withBarrier = sync_barrier;
+	syncRequest.remoteMsgs = remoteMsgs;
+	void *counter = nanos6_get_current_event_counter(); 
+	nanos6_increase_current_task_event_counter(counter, 1);
+	syncRequest.counter = counter;
+	
+	syncRequest.isActive = true;
+/*
 	// wait for remote completions
 	while(m_recvCount < remoteMsgs);
 	if (m_recvCount > remoteMsgs) //Print warning
@@ -972,14 +1031,11 @@ void IBVerbs :: sync( bool reconnect, int attr )
 
 	m_recvCount -= remoteMsgs;
 
-	// synchronize
-	for(int i = 0; i < m_nprocs; i++)
-		m_numMsgsSync[i] = 0;
-
 	if(sync_barrier) {
-		fprintf(stderr, "sync: LPF_SYNC_BARRIER\n");
 		m_comm.barrier();
 	}
+*/
+
 #else
 	while ( !m_activePeers.empty() ) {
 		m_peerList.clear();

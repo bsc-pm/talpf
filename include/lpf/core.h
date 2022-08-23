@@ -18,10 +18,10 @@
 #ifndef LPFLIB_CORE_H
 #define LPFLIB_CORE_H
 
-#define LPF_SYNC_BARRIER 	(0x8 /*1000*/ << 27)
-#define LPF_SYNC_DEFAULT 	(0x0 /*0000*/ << 27)
-#define LPF_SYNC_MSG(N) 	((0x2/*0010*/ << 27) + N)
-#define LPF_SYNC_CACHED 	(0x4 /*0100*/ << 27)
+#define LPF_SYNC_BARRIER 	(0x8 /*1000*/ << 28)
+#define LPF_SYNC_DEFAULT 	(0x0 /*0000*/ << 28)
+#define LPF_SYNC_MSG(N) 	((0x2/*0010*/ << 28) + N)
+#define LPF_SYNC_CACHED 	(0x4 /*0100*/ << 28)
 
 
 

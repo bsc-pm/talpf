@@ -87,6 +87,7 @@ private:
 #ifdef TASK_AWARENESS
 	void doLocalProgress();
 	void doRemoteProgress();
+	void processSyncRequest();
 #endif
 
 
@@ -101,6 +102,18 @@ private:
 		shared_ptr< struct ibv_mr > mr;    // verbs structure
 		std::vector< MemoryRegistration > glob; // array for global registrations
 	};
+
+#ifdef TASK_AWARENESS
+	struct SyncRequest {
+		bool	isActive;
+		bool 	withBarrier;
+		int 	remoteMsgs;
+		void *	counter;
+		void *	barrierRequest;
+	};
+
+	SyncRequest syncRequest;
+#endif
 
 	int			 m_pid; // local process ID
 	int			 m_nprocs; // number of processes
@@ -134,9 +147,9 @@ private:
 
 #ifdef TASK_AWARENESS
 	std::atomic_int	m_numMsgs;
-	std::atomic_int		*m_numMsgsSync;
-	volatile int	m_recvCount;
-	volatile int	m_stopProgress;
+	std::atomic_int	*m_numMsgsSync;
+	int		m_recvCount;
+	std::atomic_int	m_stopProgress;
 	size_t		m_postCount;
 	size_t		m_cqSize;
 	bool		m_sync_cached;
