@@ -513,10 +513,8 @@ void IBVerbs :: processSyncRequest(){
 
 	if(syncRequest.isActive){	
 		if(syncRequest.withBarrier && syncRequest.barrierRequest != NULL) {
-			fprintf(stderr, "Test\n");
 			m_comm.test(syncRequest.barrierRequest, &flag);
 			if(flag == 1){
-				fprintf(stderr, "Done b\n");
 				syncRequest.barrierRequest = NULL;
 				void *counter = syncRequest.counter;
 				syncRequest.counter = NULL;
@@ -534,12 +532,10 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.remoteMsgs = 0;
 
 			if (syncRequest.withBarrier) {
-				fprintf(stderr, "Barrier\n");
 				m_comm.getRequest(&syncRequest.barrierRequest);
 				m_comm.ibarrier(syncRequest.barrierRequest);
 			}
 			else {
-				fprintf(stderr, "Done n\n");
 				void *counter = syncRequest.counter;
 				syncRequest.counter = NULL;
 				syncRequest.isActive = false;
@@ -985,6 +981,13 @@ void IBVerbs :: sync( bool reconnect, int attr )
 	int sync_barrier = ((attr & LPF_SYNC_BARRIER) != 0) | (sync_mode == LPF_SYNC_DEFAULT);
 
 	int remoteMsgs = 0;
+
+
+	int numMsgsSync[m_nprocs];
+	for(int i = 0; i < m_nprocs; i++) {
+		numMsgsSync[i] = m_numMsgsSync[i];
+		m_numMsgsSync[i] = 0;
+	}
 	switch (sync_mode){
 		case LPF_SYNC_CACHED:
 			if (m_sync_cached){
@@ -998,8 +1001,8 @@ void IBVerbs :: sync( bool reconnect, int attr )
 		case LPF_SYNC_DEFAULT:
 			//get num remote completions
 			for(int i = 0; i < m_nprocs; i++){
-				if(i == m_pid) remoteMsgs = m_comm.allreduceSum(m_numMsgsSync[i]);
-				else m_comm.allreduceSum(m_numMsgsSync[i]);
+				if(i == m_pid) remoteMsgs = m_comm.allreduceSum(numMsgsSync[i]);
+				else m_comm.allreduceSum(numMsgsSync[i]);
 			}
 			m_sync_cached_value = remoteMsgs;
 			break;
@@ -1007,8 +1010,6 @@ void IBVerbs :: sync( bool reconnect, int attr )
 			remoteMsgs = sync_value;
 			break;
 	}
-	for(int i = 0; i < m_nprocs; i++)
-		m_numMsgsSync[i] = 0;
 
 
 	if(syncRequest.isActive) {
