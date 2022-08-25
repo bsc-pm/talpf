@@ -354,7 +354,7 @@ void IBVerbs :: reconnectQPs()
 			attr.qp_state = IBV_QPS_INIT;
 			attr.port_num = m_ibPort;
 			attr.pkey_index = 0;
-			attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
+			attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;
 			flags = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
 			if ( ibv_modify_qp(m_stagedQps[i].get(), &attr, flags) ) {
 				LOG(1, "Cannot bring state of QP " << i << " to INIT");
@@ -469,6 +469,7 @@ void IBVerbs :: doLocalProgress(){
 					<< ", vendor syndrome = 0x" << std::hex
 					<< wcs[i].vendor_err );
 				error = 1;
+				fprintf( stderr, "Got bad completion status from IB message. status = 0x%x , vendor syndrome = 0x%x\n", wcs[i].status, wcs[i].vendor_err );
 			}
 			else {
 				nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
@@ -647,7 +648,7 @@ IBVerbs :: SlotID IBVerbs :: regLocal( void * addr, size_t size )
 		LOG(4, "Registering locally memory area at " << addr << " of size  " << size );
 		slot.mr.reset( ibv_reg_mr( m_pd.get(), addr, size, 
 					IBV_ACCESS_REMOTE_READ | IBV_ACCESS_LOCAL_WRITE |
-					IBV_ACCESS_REMOTE_WRITE )
+					IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC)
 					 , ibv_dereg_mr );
 		if (!slot.mr) {
 			LOG(1, "Could not register memory area at "
@@ -678,7 +679,7 @@ IBVerbs :: SlotID IBVerbs :: regGlobal( void * addr, size_t size )
 		LOG(4, "Registering globally memory area at " << addr << " of size	" << size );
 		slot.mr.reset( ibv_reg_mr( m_pd.get(), addr, size, 
 					IBV_ACCESS_REMOTE_READ | IBV_ACCESS_LOCAL_WRITE |
-					IBV_ACCESS_REMOTE_WRITE )
+					IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC)
 					 , ibv_dereg_mr );
 
 		if (!slot.mr) {
@@ -952,6 +953,154 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 		srcOffset += sge.length;
 		dstOffset += sge.length;
 		LOG(4, "Enqueued get message of " << sge.length << " bytes from " << srcPid );
+	}
+#endif
+
+}
+
+void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
+			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t value)
+{
+	const MemorySlot & src = m_memreg.lookup( srcSlot );
+	const MemorySlot & dst = m_memreg.lookup( dstSlot );
+
+	ASSERT( dst.mr );
+#ifdef TASK_AWARENESS
+
+	struct ibv_sge sge;  std::memset(&sge, 0, sizeof(sge));
+	struct ibv_send_wr sr; std::memset(&sr, 0, sizeof(sr));
+
+	struct ibv_sge sge2;  std::memset(&sge, 0, sizeof(sge2));
+	struct ibv_send_wr sr2; std::memset(&sr, 0, sizeof(sr2));
+
+
+	void *counter = nanos6_get_current_event_counter(); 
+	nanos6_increase_current_task_event_counter(counter, 1);
+
+	atomic_fetch_add(&m_numMsgs, 1);
+	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
+
+	const char * localAddr 
+		= static_cast<const char *>(src.glob[m_pid].addr) + srcOffset;
+	const char * remoteAddr 
+		= static_cast<const char *>(dst.glob[dstPid].addr) + dstOffset;
+
+	sge.addr = reinterpret_cast<uintptr_t>( localAddr );
+	sge.length = sizeof(uint64_t);
+	sge.lkey = src.mr->lkey;
+
+	sr.next = &sr2; 
+	sr.send_flags = 0;
+	sr.wr_id = 0; 
+
+	sr.sg_list = &sge;
+	sr.num_sge = 1;
+	sr.opcode = IBV_WR_ATOMIC_FETCH_AND_ADD;
+	sr.imm_data = 0;
+
+	sr.wr.atomic.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+	sr.wr.atomic.compare_add = value;
+	sr.wr.atomic.swap = 0;
+	sr.wr.atomic.rkey = dst.glob[dstPid].rkey;
+	
+
+	sge2.addr = reinterpret_cast<uintptr_t>( localAddr );
+	sge2.length = 0;
+	sge2.lkey = dst.mr->lkey;
+
+	sr2.wr_id = (uint64_t)(counter); 
+	sr2.next = NULL;
+	sr2.send_flags = IBV_SEND_SIGNALED;
+	sr2.sg_list = &sge2;
+	sr2.num_sge = 0;
+	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
+	sr2.imm_data = 0;
+	sr2.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+	sr2.wr.rdma.rkey = src.glob[dstPid].rkey;
+
+	//Send
+	struct ibv_send_wr *bad_wr = NULL;
+	if (int err = ibv_post_send(m_connectedQps[dstPid].get(), &sr, &bad_wr ))
+	{
+		atomic_fetch_sub(&m_numMsgs, 1);
+		atomic_fetch_sub(&m_numMsgsSync[dstPid], 1);
+
+		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
+		throw Exception("Error while posting RDMA requests");
+	}
+#endif
+
+}
+
+void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
+			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t cmp, uint64_t swp)
+{
+#ifdef TASK_AWARENESS
+	const MemorySlot & src = m_memreg.lookup( srcSlot );
+	const MemorySlot & dst = m_memreg.lookup( dstSlot );
+
+	ASSERT( dst.mr );
+
+	struct ibv_sge sge;  std::memset(&sge, 0, sizeof(sge));
+	struct ibv_send_wr sr; std::memset(&sr, 0, sizeof(sr));
+
+	struct ibv_sge sge2;  std::memset(&sge, 0, sizeof(sge2));
+	struct ibv_send_wr sr2; std::memset(&sr, 0, sizeof(sr2));
+
+
+	void *counter = nanos6_get_current_event_counter(); 
+	nanos6_increase_current_task_event_counter(counter, 1);
+
+	atomic_fetch_add(&m_numMsgs, 1);
+	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
+
+	const char * localAddr 
+		= static_cast<const char *>(src.glob[m_pid].addr) + srcOffset;
+	const char * remoteAddr 
+		= static_cast<const char *>(dst.glob[dstPid].addr) + dstOffset;
+
+	sge.addr = reinterpret_cast<uintptr_t>( localAddr );
+	sge.length = sizeof(uint64_t);
+	sge.lkey = src.mr->lkey;
+
+	sr.next = &sr2; 
+	sr.send_flags = 0;
+	sr.wr_id = 0; 
+
+	sr.sg_list = &sge;
+	sr.num_sge = 1;
+	sr.opcode = IBV_WR_ATOMIC_CMP_AND_SWP;
+	sr.imm_data = 0;
+
+	sr.wr.atomic.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+	sr.wr.atomic.compare_add = cmp;
+	sr.wr.atomic.swap = swp;
+	sr.wr.atomic.rkey = dst.glob[dstPid].rkey;
+	
+
+	sge2.addr = reinterpret_cast<uintptr_t>( localAddr );
+	sge2.length = 0;
+	sge2.lkey = dst.mr->lkey;
+
+	sr2.wr_id = (uint64_t)(counter); 
+	sr2.next = NULL;
+	sr2.send_flags = IBV_SEND_SIGNALED;
+	sr2.sg_list = &sge2;
+	sr2.num_sge = 0;
+	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM; 
+	sr2.imm_data = 0;
+	sr2.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
+	sr2.wr.rdma.rkey = src.glob[dstPid].rkey;
+
+	//Send
+	struct ibv_send_wr *bad_wr = NULL;
+	if (int err = ibv_post_send(m_connectedQps[dstPid].get(), &sr, &bad_wr ))
+	{
+		atomic_fetch_sub(&m_numMsgs, 1);
+		atomic_fetch_sub(&m_numMsgsSync[dstPid], 1);
+
+		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
+		throw Exception("Error while posting RDMA requests");
 	}
 #endif
 

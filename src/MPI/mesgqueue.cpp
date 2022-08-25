@@ -383,6 +383,46 @@ void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
 #endif
 }
 
+void MessageQueue :: atomic_fetch_and_add( memslot_t srcSlot, size_t srcOffset,
+            pid_t dstPid, memslot_t dstSlot, size_t dstOffset, uint64_t value )
+{
+#ifdef TASK_AWARENESS
+
+#ifdef LPF_CORE_MPI_USES_ibverbs
+			m_ibverbs.atomic_fetch_and_add( m_memreg.getVerbID( srcSlot),
+				srcOffset,
+				dstPid,
+				m_memreg.getVerbID( dstSlot),
+				dstOffset,
+				value );
+#else
+	//TODO: ERR
+#endif
+
+#endif
+
+}
+
+void MessageQueue :: atomic_cmp_and_swp( memslot_t srcSlot, size_t srcOffset,
+            pid_t dstPid, memslot_t dstSlot, size_t dstOffset, uint64_t cmp, uint64_t swp )
+{
+#ifdef TASK_AWARENESS
+
+#ifdef LPF_CORE_MPI_USES_ibverbs
+			m_ibverbs.atomic_cmp_and_swp( m_memreg.getVerbID( srcSlot),
+				srcOffset,
+				dstPid,
+				m_memreg.getVerbID( dstSlot),
+				dstOffset,
+				cmp,
+				swp );
+#else
+	//TODO: ERR
+#endif
+
+#endif
+}
+
 int MessageQueue :: sync( bool abort, lpf_sync_attr_t attr )
 {
 #ifdef TASK_AWARENESS

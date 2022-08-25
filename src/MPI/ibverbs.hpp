@@ -69,6 +69,12 @@ public:
 	void get( int srcPid, SlotID srcSlot, size_t srcOffset, 
 			 SlotID dstSlot, size_t dstOffset, size_t size );
 
+	void atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
+			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t value);
+
+	void atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
+			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t cmp, uint64_t swp);
+
 	// Do the communication and synchronize
 	// 'Reconnect' must be a globally replicated value
 	void sync( bool reconnect, int attr );

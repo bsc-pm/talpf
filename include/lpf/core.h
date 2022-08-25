@@ -17,6 +17,7 @@
 
 #ifndef LPFLIB_CORE_H
 #define LPFLIB_CORE_H
+#include <stdint.h>
 
 #define LPF_SYNC_BARRIER 	(0x8 /*1000*/ << 28)
 #define LPF_SYNC_DEFAULT 	(0x0 /*0000*/ << 28)
@@ -2000,6 +2001,28 @@ lpf_err_t lpf_get(
     lpf_msg_attr_t attr
 );
 
+extern _LPFLIB_API
+lpf_err_t lpf_atomic_fetch_and_add( 
+	lpf_t ctx,
+	lpf_memslot_t src_slot, 
+	size_t src_offset,
+	lpf_pid_t dst_pid, 
+	lpf_memslot_t dst_slot, 
+	size_t dst_offset,
+	uint64_t value 
+);
+
+extern _LPFLIB_API
+lpf_err_t lpf_atomic_cmp_and_swp( 
+	lpf_t ctx, 
+	lpf_memslot_t src_slot, 
+	size_t src_offset,
+	lpf_pid_t dst_pid, 
+	lpf_memslot_t dst_slot, 
+	size_t dst_offset,
+	uint64_t cmp, 
+	uint64_t swp 
+);
 /**
  * Terminate the current computation phase, then execute all globally pending
  * communication requests. The local part of the global communication phase is
