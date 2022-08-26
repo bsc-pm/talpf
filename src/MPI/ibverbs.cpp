@@ -227,7 +227,8 @@ IBVerbs :: IBVerbs( Communication & comm )
 	syncRequest.isActive = false;
 	syncRequest.withBarrier = false;
 	syncRequest.counter = NULL;
-	syncRequest.barrierRequest = NULL;
+	syncRequest.secondPhase = false;
+	m_comm.getRequest(&syncRequest.barrierRequest);;
 
 	nanos6_spawn_function(pollingTask, this, endPollingTask, this, "POLLING_TASK");
 
@@ -513,12 +514,12 @@ void IBVerbs :: processSyncRequest(){
 	int flag;
 
 	if(syncRequest.isActive){	
-		if(syncRequest.withBarrier && syncRequest.barrierRequest != NULL) {
+		if(syncRequest.withBarrier && syncRequest.secondPhase) {
 			m_comm.test(syncRequest.barrierRequest, &flag);
 			if(flag == 1){
-				syncRequest.barrierRequest = NULL;
 				void *counter = syncRequest.counter;
 				syncRequest.counter = NULL;
+				syncRequest.secondPhase = false;
 				syncRequest.isActive = false;
 				nanos6_decrease_task_event_counter(counter, 1);
 				
@@ -533,8 +534,8 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.remoteMsgs = 0;
 
 			if (syncRequest.withBarrier) {
-				m_comm.getRequest(&syncRequest.barrierRequest);
 				m_comm.ibarrier(syncRequest.barrierRequest);
+				syncRequest.secondPhase = true;
 			}
 			else {
 				void *counter = syncRequest.counter;

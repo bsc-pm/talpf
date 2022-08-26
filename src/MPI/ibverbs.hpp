@@ -115,6 +115,7 @@ private:
 		bool 	withBarrier;
 		int 	remoteMsgs;
 		void *	counter;
+		bool	secondPhase;
 		void *	barrierRequest;
 	};
 

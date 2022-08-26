@@ -826,7 +826,6 @@ namespace lpf { namespace mpi {
 	{
 		MPI_Status status;
 		MPI_Test((MPI_Request *) request, flag, &status);
-		if(*flag == 1) free(request);
 		
 	}
 
