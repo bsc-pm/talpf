@@ -91,6 +91,11 @@ public:
 
     /// Wait for all other processes to reach this function
     virtual void barrier() const = 0;
+	
+    virtual void getRequest(void ** request) const = 0;
+    virtual void ibarrier(void * request) const = 0;
+
+    virtual void test(void * request, int * flag) const = 0;
 
 #ifdef LPF_CORE_MPI_USES_mpirma
     /// Reserve a number of memory registration slots

@@ -17,6 +17,15 @@
 
 #ifndef LPFLIB_CORE_H
 #define LPFLIB_CORE_H
+#include <stdint.h>
+
+#define LPF_SYNC_BARRIER 	(0x8 /*1000*/ << 28)
+#define LPF_SYNC_DEFAULT 	(0x0 /*0000*/ << 28)
+#define LPF_SYNC_MSG(N) 	((0x2/*0010*/ << 28) + N)
+#define LPF_SYNC_CACHED 	(0x4 /*0100*/ << 28)
+
+
+
 
 /**
  * \mainpage Introduction
@@ -1104,7 +1113,7 @@ extern _LPFLIB_VAR const lpf_init_t LPF_INIT_NONE;
  * \par Communication
  * This value must not be communicated.
  */
-extern _LPFLIB_VAR const lpf_sync_attr_t LPF_SYNC_DEFAULT;
+//extern _LPFLIB_VAR const lpf_sync_attr_t LPF_SYNC_DEFAULT;
 
 /**
  * Applies the default semantics of a #lpf_put or #lpf_get.
@@ -1828,6 +1837,7 @@ lpf_err_t lpf_deregister(
  * \par Runtime costs
  * See \ref BSPCOSTS.
  */
+
 extern _LPFLIB_API
 lpf_err_t lpf_put(
     lpf_t ctx,
@@ -1956,6 +1966,7 @@ lpf_err_t lpf_put(
  * \par Runtime costs
  * See \ref BSPCOSTS.
  */
+
 extern _LPFLIB_API
 lpf_err_t lpf_get(
     lpf_t ctx,
@@ -1968,6 +1979,28 @@ lpf_err_t lpf_get(
     lpf_msg_attr_t attr
 );
 
+extern _LPFLIB_API
+lpf_err_t lpf_atomic_fetch_and_add( 
+	lpf_t ctx,
+	lpf_memslot_t src_slot, 
+	size_t src_offset,
+	lpf_pid_t dst_pid, 
+	lpf_memslot_t dst_slot, 
+	size_t dst_offset,
+	uint64_t value 
+);
+
+extern _LPFLIB_API
+lpf_err_t lpf_atomic_cmp_and_swp( 
+	lpf_t ctx, 
+	lpf_memslot_t src_slot, 
+	size_t src_offset,
+	lpf_pid_t dst_pid, 
+	lpf_memslot_t dst_slot, 
+	size_t dst_offset,
+	uint64_t cmp, 
+	uint64_t swp 
+);
 /**
  * Terminate the current computation phase, then execute all globally pending
  * communication requests. The local part of the global communication phase is
@@ -2015,6 +2048,7 @@ lpf_err_t lpf_get(
  * \par Runtime costs
  * See \ref BSPCOSTS.
  */
+
 extern _LPFLIB_API
 lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
 

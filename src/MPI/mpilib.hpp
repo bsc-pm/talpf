@@ -127,6 +127,12 @@ namespace lpf { namespace mpi {
         /// Wait for all other processes to reach this function
         void barrier() const;
 
+        void getRequest(void ** request) const;
+
+        void ibarrier(void * request) const;
+
+        void test(void * request, int * flag) const;
+
 #ifdef LPF_CORE_MPI_USES_mpirma
         /// Reserve a number of memory registration slots
         virtual void reserveMemslots( int maxNumber ) ;

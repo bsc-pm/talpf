@@ -77,7 +77,7 @@ namespace lpf { namespace hybrid {
         static const err_t ERR_FATAL;
 
         static const args_t NO_ARGS;
-        static const sync_attr_t  SYNC_DEFAULT;
+        //static const sync_attr_t  SYNC_DEFAULT;
         static const msg_attr_t   MSG_DEFAULT;
         static const pid_t  MAX_P;
 
@@ -124,8 +124,8 @@ namespace lpf { namespace hybrid {
         { return USE_THREAD(get)( m_ctx, pid, src, src_offset, 
                 dst, dst_offset, size, attr ); }
 
-        err_t sync( sync_attr_t attr = SYNC_DEFAULT )
-        { return USE_THREAD(sync)( m_ctx, attr ); }
+        err_t sync( sync_attr_t attr = LPF_SYNC_DEFAULT )
+        { return attr;/*USE_THREAD(sync)( m_ctx, attr );*/ }
 
         err_t probe( machine_t * params )
         { return USE_THREAD(probe)(m_ctx, params ); }
@@ -166,7 +166,7 @@ namespace lpf { namespace hybrid {
         static const err_t ERR_FATAL;
 
         static const args_t NO_ARGS;
-        static const sync_attr_t  SYNC_DEFAULT;
+        //static const sync_attr_t  LPF_SYNC_DEFAULT;
         static const msg_attr_t   MSG_DEFAULT;
         static const pid_t  MAX_P;
 
@@ -214,8 +214,8 @@ namespace lpf { namespace hybrid {
         { return USE_MPI(get)( m_ctx, pid, src, src_offset, 
                 dst, dst_offset, size, attr ); }
 
-        err_t sync( sync_attr_t attr = SYNC_DEFAULT )
-        { return USE_MPI(sync)( m_ctx, attr ); }
+        err_t sync( sync_attr_t attr = LPF_SYNC_DEFAULT )
+        { return attr;/*USE_MPI(sync)( m_ctx, attr );*/ }
 
         err_t probe( machine_t * params )
         { return USE_MPI(probe)(m_ctx, params ); }

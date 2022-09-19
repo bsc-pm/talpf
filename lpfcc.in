@@ -73,7 +73,11 @@ function printhelp()
     echo 
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-    @CMAKE_C_COMPILER@ --help
+	if [ -z "$LPF_CC" ]; then
+	    /apps/GCC/7.2.0/bin/gcc --help
+	else
+		$LPF_CC --help
+	fi
 }
 
 
@@ -86,7 +90,7 @@ show_link_lib=
 show_link_exe=
 show_compile=
 engine=imp
-config=@LPFLIB_CONFIG_NAME@
+config=Release
 declare -a sources
 sources_number=0
 declare -a objects
@@ -231,22 +235,27 @@ if [ $doPrinthelp = yes ]; then
   exit 0
 fi
 
+if [ -z "$LPF_CC" ]; then
+    compiler="/apps/GCC/7.2.0/bin/gcc"
+    linker="/apps/GCC/7.2.0/bin/g++"
+else
+	compiler="$LPF_CC"
+	linker="$LPF_CC"
+fi
 
-compiler="@CMAKE_C_COMPILER@"
-linker="@CMAKE_CXX_COMPILER@"
+cflags=( "-I$LPF_HOME/include"   -I$MPI_HOME/include -fPIC)
+lib_ldflags=(   -Xlinker --enable-new-dtags  -Xlinker -rpath  -Xlinker $MPI_HOME/lib/release_mt  -Xlinker -rpath  -Xlinker $MPI_HOME/lib  -Xlinker -rpath  -Xlinker $MPI_HOME/lib/release_mt  -Xlinker -rpath  -Xlinker $MPI_HOME/lib -shared )
+exe_ldflags=(   -Xlinker --enable-new-dtags  -Xlinker -rpath  -Xlinker $MPI_HOME/lib/release_mt  -Xlinker -rpath  -Xlinker $MPI_HOME/lib  -Xlinker -rpath  -Xlinker $MPI_HOME/lib/release_mt  -Xlinker -rpath  -Xlinker $MPI_HOME/lib  -rdynamic )
+echo $cflags
 
-cflags=( "-I@INSTALL_HEADERS@" @LPF_CORE_COMPILE_FLAGS@ )
-lib_ldflags=( @LPF_CORE_LIB_LINK_FLAGS@ -shared )
-exe_ldflags=( @LPF_CORE_LIB_LINK_FLAGS@ @LPF_CORE_EXE_LINK_FLAGS@ )
-
-mcbsp_cflags=( "-I@INSTALL_HEADERS@/bsp" "-DLPF_USE_MCBSP_API=1" )
-bsplib_cflags=( "-I@INSTALL_HEADERS@/bsp" )
+mcbsp_cflags=( "-I$LPF_HOME/include/bsp" "-DLPF_USE_MCBSP_API=1" )
+bsplib_cflags=( "-I$LPF_HOME/include/bsp" )
 defs=()
 stdlibs=()
 
 if [ x$debug = xyes ]; then
-    stdlibs=( "-llpf_debug" "@LIB_POSIX_THREADS@" "${stdlibs[@]}" )
-    cflags=( "-I@INSTALL_HEADERS@/lpf/debug" "${cflags[@]}" )
+    stdlibs=( "-llpf_debug" "-lpthread" "${stdlibs[@]}" )
+    cflags=( "-I$LPF_HOME/include/lpf/debug" "${cflags[@]}" )
 fi    
 
 for lib in $extra_libs
@@ -260,13 +269,13 @@ do
             ;;
 
        bsplib)
-            stdlibs=( "-lbsplib" "@LIB_POSIX_THREADS@" "-llpf_hl" "${stdlibs[@]}" )
+            stdlibs=( "-lbsplib" "-lpthread" "-llpf_hl" "${stdlibs[@]}" )
             cflags=( "${cflags[@]}" ${bsplib_cflags[@]} )
             defs=()
             ;;
 
        mcbsp)
-            stdlibs=( "-lbsplib" "@LIB_POSIX_THREADS@" "-llpf_hl" "${stdlibs[@]}" )
+            stdlibs=( "-lbsplib" "-lpthread" "-llpf_hl" "${stdlibs[@]}" )
             cflags=( "${cflags[@]}" ${mcbsp_cflags[@]} )
             defs=()
             ;;
@@ -274,15 +283,15 @@ do
 done
 
 case $engine in
-  mpimsg|mpirma|ibverbs) stdlibs=( @MPI_C_LIB_CMDLINE@ ${stdlibs[@]} ) ;;
+  mpimsg|mpirma|ibverbs) stdlibs=( $MPI_HOME/lib/libmpi.so /usr/lib64/libdl.so /usr/lib64/librt.so -lpthread ${stdlibs[@]} ) ;;
   *)                     ;;
 esac
 
 stdlibs=( "${stdlibs[@]}" "-llpf_core_univ_${engine}_${config}" )
 
 compile_flags=("${other_args[@]}" "${cflags[@]}" "${defs[@]}")
-link_lib_flags=("${other_args[@]}"  "-L@INSTALL_LIB@" "${stdlibs[@]}" "${lib_ldflags[@]}" )
-link_exe_flags=("${other_args[@]}"  "-L@INSTALL_LIB@" "${stdlibs[@]}" "${exe_ldflags[@]}" )
+link_lib_flags=("${other_args[@]}"  "-L$LPF_HOME/lib" "${stdlibs[@]}" "${lib_ldflags[@]}" )
+link_exe_flags=("${other_args[@]}"  "-L$LPF_HOME/lib" "${stdlibs[@]}" "${exe_ldflags[@]}" )
 
 function quote() {
   for arg

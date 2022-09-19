@@ -149,6 +149,11 @@ find_library( LIB_IBVERBS
         NAMES ibverbs
         DOC "Infiniband verbs" )
 
+include_directories("/apps/PM/ompss-2/git/include/")
+link_directories("/apps/PM/ompss-2/git/lib/")
+add_library(LIB_NANOS6 STATIC IMPORTED)
+add_definitions(-DTASK_AWARENESS)
+
 include(cmake/hwloc.cmake)
 
 
