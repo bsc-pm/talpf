@@ -1837,17 +1837,6 @@ lpf_err_t lpf_deregister(
  * \par Runtime costs
  * See \ref BSPCOSTS.
  */
-extern _LPFLIB_API
-lpf_err_t talpf_put(
-    lpf_t ctx,
-    lpf_memslot_t src_slot,
-    size_t src_offset,
-    lpf_pid_t dst_pid,
-    lpf_memslot_t dst_slot,
-    size_t dst_offset,
-    size_t size,
-    lpf_msg_attr_t attr
-);
 
 extern _LPFLIB_API
 lpf_err_t lpf_put(
@@ -1977,17 +1966,6 @@ lpf_err_t lpf_put(
  * \par Runtime costs
  * See \ref BSPCOSTS.
  */
-extern _LPFLIB_API
-lpf_err_t talpf_get(
-    lpf_t ctx,
-    lpf_pid_t src_pid,
-    lpf_memslot_t src_slot,
-    size_t src_offset,
-    lpf_memslot_t dst_slot,
-    size_t dst_offset,
-    size_t size,
-    lpf_msg_attr_t attr
-);
 
 extern _LPFLIB_API
 lpf_err_t lpf_get(
@@ -2070,8 +2048,6 @@ lpf_err_t lpf_atomic_cmp_and_swp(
  * \par Runtime costs
  * See \ref BSPCOSTS.
  */
-extern _LPFLIB_API
-lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
 
 extern _LPFLIB_API
 lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
