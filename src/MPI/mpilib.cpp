@@ -824,8 +824,7 @@ namespace lpf { namespace mpi {
 
 	void Comm :: test(void * request, int * flag) const
 	{
-		MPI_Status status;
-		MPI_Test((MPI_Request *) request, flag, &status);
+		MPI_Test((MPI_Request *) request, flag, MPI_STATUS_IGNORE);
 		
 	}
 
