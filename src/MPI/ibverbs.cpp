@@ -470,7 +470,6 @@ void IBVerbs :: doLocalProgress(){
 					<< ", vendor syndrome = 0x" << std::hex
 					<< wcs[i].vendor_err );
 				error = 1;
-				fprintf( stderr, "Got bad completion status from IB message. status = 0x%x , vendor syndrome = 0x%x\n", wcs[i].status, wcs[i].vendor_err );
 			}
 			else {
 				nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
@@ -528,7 +527,7 @@ void IBVerbs :: processSyncRequest(){
 		// wait for remote completions
 		else if (m_recvCount >= syncRequest.remoteMsgs){
 			if (m_recvCount > syncRequest.remoteMsgs) //Print warning
-				fprintf(stderr, "There are more remote completions than the expected (%d,%d)\n", m_recvCount, syncRequest.remoteMsgs); //TODO: log
+				LOG(1, "There are more remote completions than the expected");
 	
 			m_recvCount -= syncRequest.remoteMsgs;
 			syncRequest.remoteMsgs = 0;
@@ -554,7 +553,7 @@ void IBVerbs :: doProgress(){
 		doRemoteProgress();
 		processSyncRequest();
 
-		nanos6_wait_for(500);
+		nanos6_wait_for(100); //TODO: env
 	}
 }
 
@@ -1119,8 +1118,8 @@ void IBVerbs :: sync( bool reconnect, int attr )
 #ifdef TASK_AWARENESS
 	
 	if(m_numMsgs > 0) {
-		fprintf(stderr, "There are some RMA operations that still didn't finished, \
-			there may be a problem with the dependencies\n"); //TODO: log
+		LOG(2, "There are some RMA operations that still didn't finished, \
+			there may be a problem with the dependencies");
 		//assert(m_numMsgs > 0);
 		// wait for local completion
 		while (m_numMsgs > 0);
@@ -1141,7 +1140,6 @@ void IBVerbs :: sync( bool reconnect, int attr )
 	switch (sync_mode){
 		case LPF_SYNC_CACHED:
 			if (m_sync_cached){
-				//fprintf(stderr, "sync: cached value %d\n", m_sync_cached_value);
 				remoteMsgs = m_sync_cached_value;
 				break;
 			}
@@ -1163,7 +1161,7 @@ void IBVerbs :: sync( bool reconnect, int attr )
 
 
 	if(syncRequest.isActive) {
-		fprintf(stderr, "There is another sync request active\n");
+		LOG(1, "There is another sync request active");
 		throw Exception("There is another sync request active");
 	}
 	
@@ -1174,18 +1172,6 @@ void IBVerbs :: sync( bool reconnect, int attr )
 	syncRequest.counter = counter;
 	
 	syncRequest.isActive = true;
-/*
-	// wait for remote completions
-	while(m_recvCount < remoteMsgs);
-	if (m_recvCount > remoteMsgs) //Print warning
-		fprintf(stderr, "There are more remote completions than the exxpected\n"); //TODO: log
-
-	m_recvCount -= remoteMsgs;
-
-	if(sync_barrier) {
-		m_comm.barrier();
-	}
-*/
 
 #else
 	while ( !m_activePeers.empty() ) {
