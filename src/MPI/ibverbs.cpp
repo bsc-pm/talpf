@@ -57,6 +57,11 @@ void pollingTask(void *args){
 void endPollingTask(void *args){
 //	IBVerbs *v = (IBVerbs *) args;
 }
+void IBVerbs :: getEnvPollingFrequency(){
+	const char *s = getenv("TALPF_POLLING_FREQUENCY");
+        if(s!=NULL) pollingFrequency = atoi(s);
+        else pollingFrequency = 500;;
+}
 #endif
 
 
@@ -230,6 +235,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	syncRequest.secondPhase = false;
 	m_comm.getRequest(&syncRequest.barrierRequest);;
 
+	getEnvPollingFrequency();
 	nanos6_spawn_function(pollingTask, this, endPollingTask, this, "POLLING_TASK");
 
 #else
@@ -553,7 +559,7 @@ void IBVerbs :: doProgress(){
 		doRemoteProgress();
 		processSyncRequest();
 
-		nanos6_wait_for(100); //TODO: env
+		nanos6_wait_for(pollingFrequency);
 	}
 }
 
