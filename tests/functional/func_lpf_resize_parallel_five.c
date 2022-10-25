@@ -33,7 +33,9 @@ void spmd( lpf_t ctx, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     rc = lpf_resize_memory_register( ctx, maxRegs );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( ctx, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
 }

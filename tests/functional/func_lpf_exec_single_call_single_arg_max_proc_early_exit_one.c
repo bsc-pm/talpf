@@ -50,15 +50,23 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     rc = lpf_resize_memory_register( lpf, 1 );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+#pragma oss task
     rc = lpf_sync( lpf , LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     rc = lpf_register_global( lpf, &a, sizeof(a), &aSlot );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+#pragma oss task
     rc = lpf_sync( lpf , LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+#pragma oss task
     rc = lpf_put( lpf, aSlot, 0, (pid+1) % nprocs, aSlot, sizeof(a[0]), sizeof(a[0]), LPF_MSG_DEFAULT);
+#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+#pragma oss task
     rc = lpf_sync( lpf , LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_EQ( "%d", a[0], (int) pid );
@@ -70,7 +78,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     // now, all other processes except 'one' perform an extra sync.
     if ( 1 != pid )
     {
+	#pragma oss task
         rc = lpf_sync( lpf, LPF_SYNC_DEFAULT);
+	#pragma oss taskwait
         EXPECT_EQ( "%d", LPF_ERR_FATAL, rc );
     }
     

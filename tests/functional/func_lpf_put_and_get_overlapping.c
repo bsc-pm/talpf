@@ -38,7 +38,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     rc = lpf_resize_memory_register( lpf, 2 );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
  
     lpf_memslot_t xslot = LPF_INVALID_MEMSLOT;
@@ -48,7 +50,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     rc = lpf_register_global( lpf, ys, sizeof(ys[0]) * n, &yslot );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT);
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
 
@@ -64,17 +68,22 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     // order
     for (i = 0; i < (int) nprocs; ++i)
     {
+	#pragma oss task out(i)
         rc = lpf_get( lpf, i, xslot, 0u,
                     yslot, 0u, sizeof(xs[0]) * n, 
                     LPF_MSG_DEFAULT );
         EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task in(i)
         rc = lpf_put( lpf, xslot, 0u,
                     i, yslot, 0u, sizeof(xs[0]) * n, 
                     LPF_MSG_DEFAULT );
         EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     }
+	#pragma oss taskwait
         
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
         
     // on all processors the writes have occurred in some sequential order

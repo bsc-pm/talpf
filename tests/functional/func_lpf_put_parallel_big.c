@@ -31,7 +31,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t arg )
     lpf_resize_message_queue( lpf, 2*nprocs-2 );
     lpf_resize_memory_register( lpf, 2);
 
+	#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
 
     const size_t blocksize = 99999;
     const size_t bufsize = nprocs * blocksize;
@@ -46,19 +48,27 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t arg )
 
     int try = 0;
     for (try = 0; try < 3; ++try ) {
+	#pragma oss task
        lpf_err_t rc = lpf_sync( lpf, LPF_SYNC_DEFAULT ) ;
+	#pragma oss taskwait
        EXPECT_EQ( "%d", LPF_SUCCESS, rc );
        size_t dstoffset = 0;
        size_t srcoffset = 0;
        unsigned p;
        for ( p = 0; p < nprocs; ++p ) {
            dstoffset = p * blocksize; 
-           if (pid != p) lpf_put( lpf, srcslot, srcoffset, p, dstslot, dstoffset, blocksize, LPF_MSG_DEFAULT);
+           if (pid != p){
+	#pragma oss task
+		 lpf_put( lpf, srcslot, srcoffset, p, dstslot, dstoffset, blocksize, LPF_MSG_DEFAULT);
+	   }
            srcoffset += blocksize;
        }
+	#pragma oss taskwait
     }
 
+	#pragma oss task
     lpf_err_t rc = lpf_sync( lpf, LPF_SYNC_DEFAULT ) ;
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     lpf_deregister( lpf, srcslot );

@@ -32,7 +32,9 @@ TEST( func_lpf_resize_root_zero )
     rc = lpf_resize_memory_register( LPF_ROOT, maxRegs );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( LPF_ROOT, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     return 0;

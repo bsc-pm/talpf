@@ -39,7 +39,9 @@ TEST( func_lpf_register_global_root_multiple )
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     rc = lpf_resize_memory_register( LPF_ROOT, 3);
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( LPF_ROOT, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     rc = lpf_register_global( LPF_ROOT, &a, sizeof(a), &aSlot );
@@ -51,7 +53,9 @@ TEST( func_lpf_register_global_root_multiple )
     rc = lpf_register_global( LPF_ROOT, &c, sizeof(c), &cSlot );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( LPF_ROOT, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_EQ( "%c", 'i', a[0]);
@@ -61,11 +65,15 @@ TEST( func_lpf_register_global_root_multiple )
     EXPECT_EQ( "%c", 'b', c[1]);
     EXPECT_EQ( "%c", 'c', c[2]);
 
+	#pragma oss task
     rc = lpf_put( LPF_ROOT, bSlot, 1u * sizeof(b[0]), 
             0u, cSlot, 2u*sizeof(c[0]), sizeof(b[0]), LPF_MSG_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( LPF_ROOT, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_EQ( "%c", 'i', a[0]);

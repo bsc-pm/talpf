@@ -26,14 +26,18 @@ void spmd2( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     rc = lpf_resize_memory_register( lpf, 1 );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync(lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     lpf_machine_t machine[3] = { LPF_INVALID_MACHINE, LPF_INVALID_MACHINE, LPF_INVALID_MACHINE };
     lpf_memslot_t machineSlot = LPF_INVALID_MEMSLOT ;
     rc = lpf_register_global( lpf, &machine[0], sizeof(machine), &machineSlot );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync(lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     if ( 0 == pid )
     {
@@ -44,10 +48,14 @@ void spmd2( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     else
     {
         // broadcast machine info
+	#pragma oss task
         rc = lpf_get( lpf, 0, machineSlot, 0, machineSlot, 0, 2*sizeof(machine[0]), LPF_MSG_DEFAULT );
+	#pragma oss taskwait
         EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     }
+	#pragma oss task
     rc = lpf_sync(lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     
 
