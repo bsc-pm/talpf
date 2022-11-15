@@ -83,6 +83,8 @@ public:
     /// Returns the sum of myElement on all processes.
     virtual void allreduceSum( const int * xs, int *result, int n ) const = 0;
 
+    virtual void iallreduceSum( const int * xs, int *result, int n, void * request ) const = 0;
+
     /// Returns the max of myElement on all processes.
     virtual int allreduceMax( int myElement ) const = 0;
 
