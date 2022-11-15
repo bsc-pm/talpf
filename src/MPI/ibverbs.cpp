@@ -95,6 +95,8 @@ IBVerbs :: IBVerbs( Communication & comm )
 	, m_cqSize(1)
 	, m_sync_cached(false)
 	, m_sync_cached_value(0)
+	, m_blockRequest(NULL)
+	, m_blockContext(NULL)
 #else
 	, m_srs()
 	, m_srsHeads( m_nprocs, 0u )	 
@@ -507,7 +509,7 @@ void IBVerbs :: doRemoteProgress(){
 	wr.num_sge = 0;
 
 
-	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64,m_nprocs), wcs);
+	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, syncRequest.remoteMsgs + m_nprocs), wcs);
 	for(int i = 0; i < pollResult; i++){
 		m_recvCount++;
 		wr.wr_id = wcs[i].wr_id;
@@ -517,38 +519,47 @@ void IBVerbs :: doRemoteProgress(){
 
 void IBVerbs :: processSyncRequest(){
 	int flag;
-
-	if(syncRequest.isActive){	
-		if(syncRequest.withBarrier && syncRequest.secondPhase) {
-			m_comm.test(syncRequest.barrierRequest, &flag);
-			if(flag == 1){
-				void *counter = syncRequest.counter;
-				syncRequest.counter = NULL;
-				syncRequest.secondPhase = false;
-				syncRequest.isActive = false;
-				nanos6_decrease_task_event_counter(counter, 1);
-				
-			}
+	if(syncRequest.withBarrier && syncRequest.secondPhase) {
+		m_comm.test(syncRequest.barrierRequest, &flag);
+		if(flag == 1){
+			void *counter = syncRequest.counter;
+			syncRequest.counter = NULL;
+			syncRequest.secondPhase = false;
+			syncRequest.isActive = false;
+			nanos6_decrease_task_event_counter(counter, 1);
+			
 		}
-		// wait for remote completions
-		else if (m_recvCount >= syncRequest.remoteMsgs){
-			if (m_recvCount > syncRequest.remoteMsgs) //Print warning
-				LOG(1, "There are more remote completions than the expected");
-	
-			m_recvCount -= syncRequest.remoteMsgs;
-			syncRequest.remoteMsgs = 0;
+	}
+	// wait for remote completions
+	else if (m_recvCount >= syncRequest.remoteMsgs){
+		if (m_recvCount > syncRequest.remoteMsgs) //Print warning
+			LOG(1, "There are more remote completions than the expected");
 
-			if (syncRequest.withBarrier) {
-				m_comm.ibarrier(syncRequest.barrierRequest);
-				syncRequest.secondPhase = true;
-			}
-			else {
-				void *counter = syncRequest.counter;
-				syncRequest.counter = NULL;
-				syncRequest.isActive = false;
-				nanos6_decrease_task_event_counter(counter, 1);
-			}
+		m_recvCount -= syncRequest.remoteMsgs;
+		syncRequest.remoteMsgs = 0;
+
+		if (syncRequest.withBarrier) {
+			m_comm.ibarrier(syncRequest.barrierRequest);
+			syncRequest.secondPhase = true;
 		}
+		else {
+			void *counter = syncRequest.counter;
+			syncRequest.counter = NULL;
+			syncRequest.isActive = false;
+			nanos6_decrease_task_event_counter(counter, 1);
+		}
+	}
+}
+
+void IBVerbs :: processBlock(){
+	int flag;
+	m_comm.test(m_blockRequest, &flag);
+	if(flag == 1){
+		free(m_blockRequest);
+		m_blockRequest = NULL;
+		void *context = m_blockContext;
+		m_blockContext = NULL;
+		nanos6_unblock_task(context); 
 	}
 }
 
@@ -557,7 +568,10 @@ void IBVerbs :: doProgress(){
 	while(!m_stopProgress){
 		doLocalProgress();
 		doRemoteProgress();
-		processSyncRequest();
+		if(m_blockContext != NULL)
+			processBlock();
+		if(syncRequest.isActive)
+			processSyncRequest();
 
 		nanos6_wait_for(pollingFrequency);
 	}
@@ -1117,11 +1131,30 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 #define LPF_SYNC_MODE		(0x6 << 28)
 #endif
 
-void IBVerbs :: sync( bool reconnect, int attr )
+void IBVerbs :: sync( int * vote, int attr )
 {
-	if (reconnect) reconnectQPs();
+
+
 
 #ifdef TASK_AWARENESS
+	int voted[2];
+	voted[0] = 0;
+	voted[1] = 0;
+
+	
+	//if(m_blockRequest != NULL)
+	m_comm.getRequest(&m_blockRequest);
+	m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
+	m_blockContext = nanos6_get_current_blocking_context();
+	nanos6_block_current_task(m_blockContext);
+	
+
+	if (voted[0] != 0 ) {
+		vote[0] = voted[0];
+		return;
+	}
+
+	if (voted[1] > 0) reconnectQPs();
 	
 	if(m_numMsgs > 0) {
 		LOG(2, "There are some RMA operations that still didn't finished, \

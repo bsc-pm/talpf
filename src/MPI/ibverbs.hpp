@@ -77,7 +77,7 @@ public:
 
 	// Do the communication and synchronize
 	// 'Reconnect' must be a globally replicated value
-	void sync( bool reconnect, int attr );
+	void sync( int * vote, int attr );
 #ifdef TASK_AWARENESS
 	void doProgress();
 	void stopProgress();
@@ -94,6 +94,7 @@ private:
 	void doLocalProgress();
 	void doRemoteProgress();
 	void processSyncRequest();
+	void processBlock();
 	void getEnvPollingFrequency();
 #endif
 
@@ -163,6 +164,8 @@ private:
 	size_t		m_cqSize;
 	bool		m_sync_cached;
 	int		m_sync_cached_value;
+	void * m_blockRequest;
+	void * m_blockContext;
 #else
 	std::vector< struct ibv_send_wr >	m_srs; // array of send requests	 
 	std::vector< size_t >			m_srsHeads; // head of send queue per peer	   
