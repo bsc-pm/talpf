@@ -26,9 +26,11 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     size_t maxMsgs = 2 , maxRegs = 2;
     rc = lpf_resize_message_queue( lpf, maxMsgs);
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
-    rc = lpf_resize_memory_register( lpf, maxRegs );
+    RC = lpf_resize_memory_register( lpf, maxRegs );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
  
     int x = 5, y = 10;
@@ -39,15 +41,21 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     rc = lpf_register_global( lpf, &y, sizeof(y), &yslot );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT);
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_EQ( "%d", 10, y);
 
+	#pragma oss task
     rc = lpf_put( lpf, xslot, 0, (pid+1)%nprocs, yslot, 0, sizeof(x), LPF_MSG_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_EQ( "%d", 5, y);

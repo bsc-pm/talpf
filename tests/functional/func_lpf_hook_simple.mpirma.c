@@ -45,13 +45,19 @@ void spmd( lpf_t ctx, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     rc = lpf_register_global( ctx, &y, sizeof(y), &ySlot );
     EXPECT_EQ( "%d", rc, LPF_SUCCESS );
 
+	#pragma oss task
     rc = lpf_sync( ctx, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", rc, LPF_SUCCESS );
 
+	#pragma oss task
     rc = lpf_put( ctx, xSlot, 0, (pid + 1) % nprocs, ySlot, 0, sizeof(x), LPF_MSG_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", rc, LPF_SUCCESS );
 
+	#pragma oss task
     rc = lpf_sync( ctx, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", rc, LPF_SUCCESS );
 
     EXPECT_EQ( "%d", x, (int) (5 - pid) );

@@ -16,11 +16,19 @@
  */
 
 #include <lpf/core.h>
+#include <lpf/mpi.h>
+#include <mpi.h>
+
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
+
+#ifdef _OMPSS_2
+#include <nanos6/debug.h>
+#endif
+const int LPF_MPI_AUTO_INITIALIZE = 0;
 
 typedef struct {
     int expected_nprocs;
@@ -45,23 +53,33 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     for (i = 0; i < nprocs; ++i)
         mem[i] = pid + 'A';
 
+#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
-
+#pragma oss taskwait
     lpf_memslot_t params_slot = LPF_INVALID_MEMSLOT;
     lpf_register_global( lpf, &params, sizeof(params), &params_slot );
 
     lpf_memslot_t mem_slot = LPF_INVALID_MEMSLOT;
     lpf_register_global( lpf, mem, nprocs, &mem_slot );
+#pragma oss task
+    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
 
     if (pid != 0) 
+#pragma oss task
         lpf_get( lpf, 0, params_slot, 0, params_slot, 0, sizeof(params), LPF_MSG_DEFAULT );
+#pragma oss taskwait
 
     for (i = 0; i < nprocs; ++i) {
         if ( i != pid )
+#pragma oss task
             lpf_put( lpf, mem_slot, pid, i, mem_slot, pid, sizeof(mem[0]), LPF_MSG_DEFAULT );
     }
+#pragma oss taskwait
 
+#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
 
 
     assert( params.error == 1 );
@@ -74,19 +92,25 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     }
     if (!params.error)
         params.actual_nprocs = nprocs;
-
+#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
 
-    if (params.error && pid != 0)
+    if (params.error && pid != 0){
+#pragma oss task
         lpf_put( lpf, params_slot, 0, 0, params_slot, 0, sizeof(params), LPF_MSG_DEFAULT);
+#pragma oss taskwait
+    }
 
 
+#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
 
-    if (pid == 0) {
+//    if (pid == 0) {
         assert( args.output_size == sizeof(params));
         memcpy( args.output, &params, sizeof(params));
-    }
+  //  }
 }
 
 int main( int argc, char ** argv )
@@ -107,8 +131,24 @@ int main( int argc, char ** argv )
     args.output_size = sizeof(params);
     args.f_symbols = NULL;
     args.f_size = 0;
+/*
+    lpf_err_t rc = lpf_exec( LPF_ROOT, LPF_MAX_P, &spmd, args );
+*/
+        const int required = MPI_THREAD_SERIALIZED;
+        //const int required = MPI_THREAD_MULTIPLE;
 
-    lpf_err_t rc = lpf_exec( LPF_ROOT, LPF_MAX_P, spmd, args );
+        int provided;
+        MPI_Init_thread(&argc, &argv, required, &provided);
+        if (provided != required) {
+                fprintf(stderr, "Error: MPI threading level not supported!\n");
+                return 1;
+        }   
+
+
+        lpf_init_t init;
+        lpf_mpi_initialize_with_mpicomm(MPI_COMM_WORLD, &init);
+
+        lpf_err_t rc =lpf_hook(init, spmd, args);
 
 
     if (rc != LPF_SUCCESS ) {
@@ -126,6 +166,14 @@ int main( int argc, char ** argv )
 
     printf("Got expected number of processes %d on engine %s\n",
             expected_nprocs, getenv("LPF_ENGINE"));
+
+
+
+
+        lpf_mpi_finalize(init);
+
+        MPI_Finalize();
+
 
     return EXIT_SUCCESS;
 }

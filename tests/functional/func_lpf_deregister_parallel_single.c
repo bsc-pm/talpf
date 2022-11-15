@@ -46,16 +46,22 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     rc = lpf_deregister( lpf, xslot );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+    #pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    #pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     if ( (pid | 0x1) < nprocs )
     {
+	#pragma oss task
         rc = lpf_put( lpf, yslot, 0, pid ^ 0x1, zslot, 0, sizeof(y), LPF_MSG_DEFAULT );
         EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     }
+    #pragma oss taskiwait
 
+#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_EQ( "%d", (pid|0x1) < nprocs ? 2 : 3, z );

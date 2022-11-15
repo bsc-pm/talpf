@@ -46,19 +46,24 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
             rc = lpf_register_global( lpf, &buffer[i*2], sizeof(buffer[0])*2, &slots[i] );
             EXPECT_EQ( "%d", LPF_SUCCESS, rc );
         }
-
-        rc = lpf_sync( lpf, LPF_SYNC_DEFAULT);
+	#pragma oss task
+        	rc = lpf_sync( lpf, LPF_SYNC_DEFAULT);
+	#pragma oss taskwait
         EXPECT_EQ( "%d", LPF_SUCCESS, rc );
         EXPECT_STREQ( 4, "abcd", buffer );
 
         for (i = 0; i < maxRegs; ++i)
         {
+	#pragma oss task
             rc = lpf_put( lpf, slots[i], 0u, 
                     (pid+i)%nprocs, slots[i], 1u, sizeof(buffer[0]), LPF_MSG_DEFAULT );
             EXPECT_EQ( "%d", LPF_SUCCESS, rc );
         }
+	#pragma oss taskwait
 
+	#pragma oss task
         rc = lpf_sync( lpf, LPF_SYNC_DEFAULT);
+	#pragma oss taskwait
         EXPECT_EQ( "%d", LPF_SUCCESS, rc );
         EXPECT_STREQ( 4, "aacc", buffer );
 

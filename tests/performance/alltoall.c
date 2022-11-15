@@ -74,7 +74,9 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
             break;
     }
     if ( rc != LPF_SUCCESS ) return rc;
+#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     if ( rc != LPF_SUCCESS ) return rc;
 
     /* allocate buffer & fill with some data (non-zero) */
@@ -86,7 +88,9 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
     // register the buffer
     lpf_register_global(lpf, buffer, n_msgs*size*nprocs, &slot );
 
+#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     if ( rc != LPF_SUCCESS ) return rc;
     
     clock_gettime( CLOCK_MONOTONIC, &t0 );
@@ -95,35 +99,43 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
         case ALL:
             for ( j = 0; j < nprocs; ++j)
                 if (j != pid ) for ( i = 0; i < n_msgs; ++i) 
+		#pragma oss task
                     lpf_put( lpf, 
                             slot, pid*n_msgs*size + i*size, 
                             j, slot, (with_collisions?j:pid)*n_msgs*size+i*size, 
                             size, 
                             LPF_MSG_DEFAULT
                             );
+	    #pragma oss taskiwait
             break;
         
         case SCATTER:
-            if ( 0 == pid ) 
+            if ( 0 == pid ) {
               for ( j = 1; j < nprocs; ++j)
                 for ( i = 0; i < n_msgs; ++i) 
+		#pragma oss task
                     lpf_put( lpf, 
                             slot, pid*n_msgs*size + i*size, 
                             j, slot, (with_collisions?j:pid)*n_msgs*size+i*size, 
                             size, 
                             LPF_MSG_DEFAULT
                             );
+	    	#pragma oss taskwiat
+	    }
             break;
 
         case GATHER:
-            if ( 0 != pid ) 
+            if ( 0 != pid ) {
                 for ( i = 0; i < n_msgs; ++i) 
+		    #pragma oss task
                     lpf_put( lpf, 
                             slot, pid*n_msgs*size + i*size, 
                             0, slot, (with_collisions?0:pid)*n_msgs*size+i*size, 
                             size, 
                             LPF_MSG_DEFAULT
                             );
+		#pragma oss taskwait
+	    }
             break;
 
         case GRID:
@@ -133,6 +145,7 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
               for ( i = 0; i < n_msgs; ++i)  {
                 lpf_pid_t dest = peers[i % 4];
                 if (dest != pid)
+		    #pragma oss task
                     lpf_put( lpf, 
                             slot, pid*n_msgs*size + i*size, 
                             dest, slot, (with_collisions?dest:pid)*n_msgs*size+i*size, 
@@ -140,6 +153,7 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
                             LPF_MSG_DEFAULT
                             );
               }
+		#pragma oss taskwait
             }
             break;
 
@@ -147,6 +161,7 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
             for ( i = 0; i < n_msgs; ++i)  {
                 lpf_pid_t dest = (double) rng_next(&rng) / (1.0 + UINT64_MAX) * nprocs;
                 if (dest != pid)
+		    #pragma oss task
                     lpf_put( lpf, 
                             slot, pid*n_msgs*size + i*size, 
                             dest, slot, (with_collisions?dest:pid)*n_msgs*size+i*size, 
@@ -154,11 +169,14 @@ lpf_err_t all2all( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs,
                             LPF_MSG_DEFAULT
                             );
             }
+	    #pragma oss taskwait
             break;
     }
 
     // do the sync
+#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     clock_gettime( CLOCK_MONOTONIC, &t1 );
 
     // free the slot
@@ -207,14 +225,21 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     rc = lpf_resize_message_queue( lpf, nprocs);
     if (LPF_SUCCESS != rc) return;
 
+#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     if (LPF_SUCCESS != rc) return;
 
     lpf_register_global( lpf, &ps, sizeof(ps), &ps_slot);
     if (pid != 0)
+#pragma oss task
         lpf_get( lpf, 0, ps_slot, 0, ps_slot, 0, sizeof(ps), LPF_MSG_DEFAULT);
+#pragma oss taskwait
 
+
+#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+#pragma oss taskwait
     if (LPF_SUCCESS != rc) return;
     lpf_deregister( lpf, ps_slot );
     

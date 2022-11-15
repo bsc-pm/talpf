@@ -29,7 +29,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     rc = lpf_resize_memory_register( lpf, maxRegs );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     char buffer[21] = "Ditiseentestmettandr";
@@ -44,7 +46,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
 
     rc = lpf_resize_memory_register( lpf, maxRegs + 3 );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     for ( i = 0; i < 5; ++i)
@@ -55,7 +59,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
 
     EXPECT_STREQ( 20, "Ditiseentestmettandr", buffer );
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     for (i = 0; i < 10; ++i)
@@ -64,7 +70,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
                 (pid+i)%nprocs, slots[i], 1u, sizeof(buffer[0]), LPF_MSG_DEFAULT );
     }
 
+	#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
 
     EXPECT_STREQ( 20, "DDttsseettssmmttaadd", buffer );
 

@@ -33,7 +33,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     rc = lpf_resize_memory_register( lpf, maxRegs );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     char buf1[16] = "abcdefghijklmnop";
@@ -46,7 +48,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     rc = lpf_register_global( lpf, &buf2[0], sizeof(buf2), &slot2 );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     // resize to 0 messages again.
@@ -56,15 +60,21 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
 
     unsigned i;
     for ( i = 0; i < 16; ++i )
+	#pragma oss task
         lpf_put( lpf, slot1, i, (pid + 1 ) % nprocs, slot2, i, 1, LPF_MSG_DEFAULT);
+	#pragma oss taskwait
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
 
     EXPECT_STREQ( 16, buf2, "abcdefghijklmnop");
 
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     lpf_deregister( lpf, slot1 );

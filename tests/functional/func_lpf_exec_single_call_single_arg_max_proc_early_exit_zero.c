@@ -40,7 +40,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
         EXPECT_EQ( "%p", (void *) NULL, args.input );
         EXPECT_EQ( "%p", (void *) NULL, args.output );
 
+	#pragma oss task
         lpf_err_t rc = lpf_sync(lpf, LPF_SYNC_DEFAULT);
+	#pragma oss taskwait
         EXPECT_EQ( "%d", LPF_ERR_FATAL, rc );
     }
 }

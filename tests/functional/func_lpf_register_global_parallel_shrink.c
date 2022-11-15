@@ -28,7 +28,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
     rc = lpf_resize_memory_register( lpf, maxRegs );
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     char buffer[21] = "Ditiseentestmettandr";
@@ -55,7 +57,9 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
     // reduce by 4 which gets accepted
     rc = lpf_resize_memory_register( lpf, maxRegs - 4);
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
+	#pragma oss task
     rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
     EXPECT_EQ( "%d", LPF_SUCCESS, rc );
 
     EXPECT_STREQ( 20, "Ditiseentestmettandr", buffer );
@@ -73,12 +77,16 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args)
         // if slot wasn't deregistered, then send something
         if ( j == nDelRegs)
         {
+	#pragma oss task
             lpf_put( lpf, slots[k], 0u, 
                     (pid+k)%nprocs, slots[k], 1u, sizeof(buffer[0]), LPF_MSG_DEFAULT );
         }
     }
+	#pragma oss taskwait
 
+	#pragma oss task
     lpf_sync( lpf, LPF_SYNC_DEFAULT );
+	#pragma oss taskwait
 
     EXPECT_STREQ( 20, "Dittsseettstmmttandr", buffer );
 

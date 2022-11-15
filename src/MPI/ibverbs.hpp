@@ -94,6 +94,7 @@ private:
 	void doLocalProgress();
 	void doRemoteProgress();
 	void processSyncRequest();
+	void getEnvPollingFrequency();
 #endif
 
 
@@ -120,6 +121,7 @@ private:
 	};
 
 	SyncRequest syncRequest;
+	uint32_t pollingFrequency;
 #endif
 
 	int			 m_pid; // local process ID
