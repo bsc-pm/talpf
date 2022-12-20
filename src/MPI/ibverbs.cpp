@@ -179,6 +179,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	// maximum number of work requests per Queue Pair
 	m_maxSrs = std::min<size_t>( m_deviceAttr.max_qp_wr, // maximum work requests per QP
 								 m_deviceAttr.max_cqe ); // maximum entries per CQ
+	
 	LOG(3, "Maximum number of send requests is the minimum of "
 			<< m_deviceAttr.max_qp_wr << " (the maximum of work requests per QP)"
 			<< " and " << m_deviceAttr.max_cqe << " (the maximum of completion "
@@ -214,13 +215,13 @@ IBVerbs :: IBVerbs( Communication & comm )
 	LOG(3, "Opened protection domain");
 
 #ifdef TASK_AWARENESS
-	m_cqLocal.reset( ibv_create_cq( m_device.get(), m_cqSize, NULL, NULL, 0) ); //tmp cq
+	m_cqLocal.reset( ibv_create_cq( m_device.get(), m_cqSize , NULL, NULL, 0) ); //tmp cq
 	if (!m_cqLocal) {
 		LOG(1, "Could not allocate completion queue with '"
 				<< m_nprocs << " entries" );
 		throw Exception("Could not allocate completion queue");
 	}
-	m_cqRemote.reset( ibv_create_cq( m_device.get(), m_cqSize * m_nprocs, NULL, NULL, 0) ); //tmp cq
+	m_cqRemote.reset( ibv_create_cq( m_device.get(),  m_cqSize * m_nprocs, NULL, NULL, 0) ); //tmp cq
 	if (!m_cqRemote) {
 		LOG(1, "Could not allocate completion queue with '"
 				<< m_nprocs << " entries" );
@@ -282,8 +283,8 @@ void IBVerbs :: stageQPs( size_t maxMsgs )
 #ifdef TASK_AWARENESS
 		attr.send_cq = m_cqLocal.get();
 		attr.recv_cq = m_cqRemote.get();
-		attr.cap.max_send_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs);
-		attr.cap.max_recv_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs);
+		attr.cap.max_send_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs/4);
+		attr.cap.max_recv_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs/4);
 #else
 		attr.send_cq = m_cq.get();
 		attr.recv_cq = m_cq.get();
@@ -293,13 +294,13 @@ void IBVerbs :: stageQPs( size_t maxMsgs )
 #endif
 		attr.cap.max_send_sge = 1;
 		attr.cap.max_recv_sge = 1;
-
 		m_stagedQps[i].reset( 
 				ibv_create_qp( m_pd.get(), &attr ), 
 				ibv_destroy_qp
 		);
 
 		if (!m_stagedQps[i]) {
+			
 			LOG( 1, "Could not create Infiniband Queue pair number " << i );
 			throw std::bad_alloc();
 		}
@@ -509,7 +510,7 @@ void IBVerbs :: doRemoteProgress(){
 	wr.num_sge = 0;
 
 
-	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, syncRequest.remoteMsgs + m_nprocs), wcs);
+	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
 	for(int i = 0; i < pollResult; i++){
 		m_recvCount++;
 		wr.wr_id = wcs[i].wr_id;
@@ -606,19 +607,20 @@ void IBVerbs :: resizeMemreg( size_t size )
 void IBVerbs :: resizeMesgq( size_t size )
 {
 #ifdef TASK_AWARENESS
-	m_cqSize = size;
+	m_cqSize = std::min<size_t>(size,m_maxSrs/4);
+	size_t remote_size = std::min<size_t>(m_cqSize*m_nprocs,m_maxSrs/4);
 	if (m_cqLocal) { 
-		ibv_resize_cq(m_cqLocal.get(), size);
+		ibv_resize_cq(m_cqLocal.get(), m_cqSize);
 	}	
 	if(size*m_nprocs >= m_postCount){
 		if (m_cqRemote) { 
-			ibv_resize_cq(m_cqRemote.get(), size * m_nprocs);
+			ibv_resize_cq(m_cqRemote.get(),  remote_size);
 		}
 	}
+	
+	stageQPs(m_cqSize);
 
-	stageQPs(size);
-
-	if(size*m_nprocs >= m_postCount){
+	if(remote_size >= m_postCount){
 		if (m_cqRemote) { 
 			struct ibv_recv_wr wr;
 			struct ibv_sge sg;
@@ -630,7 +632,7 @@ void IBVerbs :: resizeMesgq( size_t size )
 			wr.sg_list = &sg;
 			wr.num_sge = 0;
 			
-			for(int i = 0; i < (int)m_cqSize; ++i){
+			for(int i = 0; i < (int)remote_size/m_nprocs; ++i){
 				for(int j= 0; j < m_nprocs; j++){
 					wr.wr_id = j;
 					ibv_post_recv(m_stagedQps[j].get(), &wr, &bad_wr);
