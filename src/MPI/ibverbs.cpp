@@ -95,6 +95,8 @@ IBVerbs :: IBVerbs( Communication & comm )
 	, m_cqSize(1)
 	, m_sync_cached(false)
 	, m_sync_cached_value(0)
+	, m_blockRequest(NULL)
+	, m_blockContext(NULL)
 #else
 	, m_srs()
 	, m_srsHeads( m_nprocs, 0u )	 
@@ -177,6 +179,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	// maximum number of work requests per Queue Pair
 	m_maxSrs = std::min<size_t>( m_deviceAttr.max_qp_wr, // maximum work requests per QP
 								 m_deviceAttr.max_cqe ); // maximum entries per CQ
+	
 	LOG(3, "Maximum number of send requests is the minimum of "
 			<< m_deviceAttr.max_qp_wr << " (the maximum of work requests per QP)"
 			<< " and " << m_deviceAttr.max_cqe << " (the maximum of completion "
@@ -212,13 +215,13 @@ IBVerbs :: IBVerbs( Communication & comm )
 	LOG(3, "Opened protection domain");
 
 #ifdef TASK_AWARENESS
-	m_cqLocal.reset( ibv_create_cq( m_device.get(), m_cqSize, NULL, NULL, 0) ); //tmp cq
+	m_cqLocal.reset( ibv_create_cq( m_device.get(), m_cqSize , NULL, NULL, 0) ); //tmp cq
 	if (!m_cqLocal) {
 		LOG(1, "Could not allocate completion queue with '"
 				<< m_nprocs << " entries" );
 		throw Exception("Could not allocate completion queue");
 	}
-	m_cqRemote.reset( ibv_create_cq( m_device.get(), m_cqSize * m_nprocs, NULL, NULL, 0) ); //tmp cq
+	m_cqRemote.reset( ibv_create_cq( m_device.get(),  m_cqSize * m_nprocs, NULL, NULL, 0) ); //tmp cq
 	if (!m_cqRemote) {
 		LOG(1, "Could not allocate completion queue with '"
 				<< m_nprocs << " entries" );
@@ -280,8 +283,8 @@ void IBVerbs :: stageQPs( size_t maxMsgs )
 #ifdef TASK_AWARENESS
 		attr.send_cq = m_cqLocal.get();
 		attr.recv_cq = m_cqRemote.get();
-		attr.cap.max_send_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs);
-		attr.cap.max_recv_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs);
+		attr.cap.max_send_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs/4);
+		attr.cap.max_recv_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs/4);
 #else
 		attr.send_cq = m_cq.get();
 		attr.recv_cq = m_cq.get();
@@ -291,13 +294,13 @@ void IBVerbs :: stageQPs( size_t maxMsgs )
 #endif
 		attr.cap.max_send_sge = 1;
 		attr.cap.max_recv_sge = 1;
-
 		m_stagedQps[i].reset( 
 				ibv_create_qp( m_pd.get(), &attr ), 
 				ibv_destroy_qp
 		);
 
 		if (!m_stagedQps[i]) {
+			
 			LOG( 1, "Could not create Infiniband Queue pair number " << i );
 			throw std::bad_alloc();
 		}
@@ -507,7 +510,7 @@ void IBVerbs :: doRemoteProgress(){
 	wr.num_sge = 0;
 
 
-	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64,m_nprocs), wcs);
+	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
 	for(int i = 0; i < pollResult; i++){
 		m_recvCount++;
 		wr.wr_id = wcs[i].wr_id;
@@ -517,38 +520,47 @@ void IBVerbs :: doRemoteProgress(){
 
 void IBVerbs :: processSyncRequest(){
 	int flag;
-
-	if(syncRequest.isActive){	
-		if(syncRequest.withBarrier && syncRequest.secondPhase) {
-			m_comm.test(syncRequest.barrierRequest, &flag);
-			if(flag == 1){
-				void *counter = syncRequest.counter;
-				syncRequest.counter = NULL;
-				syncRequest.secondPhase = false;
-				syncRequest.isActive = false;
-				nanos6_decrease_task_event_counter(counter, 1);
-				
-			}
+	if(syncRequest.withBarrier && syncRequest.secondPhase) {
+		m_comm.test(syncRequest.barrierRequest, &flag);
+		if(flag == 1){
+			void *counter = syncRequest.counter;
+			syncRequest.counter = NULL;
+			syncRequest.secondPhase = false;
+			syncRequest.isActive = false;
+			nanos6_decrease_task_event_counter(counter, 1);
+			
 		}
-		// wait for remote completions
-		else if (m_recvCount >= syncRequest.remoteMsgs){
-			if (m_recvCount > syncRequest.remoteMsgs) //Print warning
-				LOG(1, "There are more remote completions than the expected");
-	
-			m_recvCount -= syncRequest.remoteMsgs;
-			syncRequest.remoteMsgs = 0;
+	}
+	// wait for remote completions
+	else if (m_recvCount >= syncRequest.remoteMsgs){
+		if (m_recvCount > syncRequest.remoteMsgs) //Print warning
+			LOG(1, "There are more remote completions than the expected");
 
-			if (syncRequest.withBarrier) {
-				m_comm.ibarrier(syncRequest.barrierRequest);
-				syncRequest.secondPhase = true;
-			}
-			else {
-				void *counter = syncRequest.counter;
-				syncRequest.counter = NULL;
-				syncRequest.isActive = false;
-				nanos6_decrease_task_event_counter(counter, 1);
-			}
+		m_recvCount -= syncRequest.remoteMsgs;
+		syncRequest.remoteMsgs = 0;
+
+		if (syncRequest.withBarrier) {
+			m_comm.ibarrier(syncRequest.barrierRequest);
+			syncRequest.secondPhase = true;
 		}
+		else {
+			void *counter = syncRequest.counter;
+			syncRequest.counter = NULL;
+			syncRequest.isActive = false;
+			nanos6_decrease_task_event_counter(counter, 1);
+		}
+	}
+}
+
+void IBVerbs :: processBlock(){
+	int flag;
+	m_comm.test(m_blockRequest, &flag);
+	if(flag == 1){
+		free(m_blockRequest);
+		m_blockRequest = NULL;
+		void *context = m_blockContext;
+		m_blockContext = NULL;
+		nanos6_unblock_task(context); 
 	}
 }
 
@@ -557,7 +569,10 @@ void IBVerbs :: doProgress(){
 	while(!m_stopProgress){
 		doLocalProgress();
 		doRemoteProgress();
-		processSyncRequest();
+		if(m_blockContext != NULL)
+			processBlock();
+		if(syncRequest.isActive)
+			processSyncRequest();
 
 		nanos6_wait_for(pollingFrequency);
 	}
@@ -592,19 +607,20 @@ void IBVerbs :: resizeMemreg( size_t size )
 void IBVerbs :: resizeMesgq( size_t size )
 {
 #ifdef TASK_AWARENESS
-	m_cqSize = size;
+	m_cqSize = std::min<size_t>(size,m_maxSrs/4);
+	size_t remote_size = std::min<size_t>(m_cqSize*m_nprocs,m_maxSrs/4);
 	if (m_cqLocal) { 
-		ibv_resize_cq(m_cqLocal.get(), size);
+		ibv_resize_cq(m_cqLocal.get(), m_cqSize);
 	}	
 	if(size*m_nprocs >= m_postCount){
 		if (m_cqRemote) { 
-			ibv_resize_cq(m_cqRemote.get(), size * m_nprocs);
+			ibv_resize_cq(m_cqRemote.get(),  remote_size);
 		}
 	}
+	
+	stageQPs(m_cqSize);
 
-	stageQPs(size);
-
-	if(size*m_nprocs >= m_postCount){
+	if(remote_size >= m_postCount){
 		if (m_cqRemote) { 
 			struct ibv_recv_wr wr;
 			struct ibv_sge sg;
@@ -616,7 +632,7 @@ void IBVerbs :: resizeMesgq( size_t size )
 			wr.sg_list = &sg;
 			wr.num_sge = 0;
 			
-			for(int i = 0; i < (int)m_cqSize; ++i){
+			for(int i = 0; i < (int)remote_size/m_nprocs; ++i){
 				for(int j= 0; j < m_nprocs; j++){
 					wr.wr_id = j;
 					ibv_post_recv(m_stagedQps[j].get(), &wr, &bad_wr);
@@ -1117,11 +1133,30 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 #define LPF_SYNC_MODE		(0x6 << 28)
 #endif
 
-void IBVerbs :: sync( bool reconnect, int attr )
+void IBVerbs :: sync( int * vote, int attr )
 {
-	if (reconnect) reconnectQPs();
+
+
 
 #ifdef TASK_AWARENESS
+	int voted[2];
+	voted[0] = 0;
+	voted[1] = 0;
+
+	
+	//if(m_blockRequest != NULL)
+	m_comm.getRequest(&m_blockRequest);
+	m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
+	m_blockContext = nanos6_get_current_blocking_context();
+	nanos6_block_current_task(m_blockContext);
+	
+
+	if (voted[0] != 0 ) {
+		vote[0] = voted[0];
+		return;
+	}
+
+	if (voted[1] > 0) reconnectQPs();
 	
 	if(m_numMsgs > 0) {
 		LOG(2, "There are some RMA operations that still didn't finished, \

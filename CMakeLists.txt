@@ -125,7 +125,7 @@ find_library( LIB_POSIX_THREADS
     )
 
 if ( LIB_POSIX_THREADS )
-    list(APPEND ENGINES "pthread")
+#    list(APPEND ENGINES "pthread")
 endif()
 
 find_library( LIB_MATH
@@ -152,6 +152,9 @@ find_library( LIB_IBVERBS
 include_directories("/apps/PM/ompss-2/git/include/")
 link_directories("/apps/PM/ompss-2/git/lib/")
 add_library(LIB_NANOS6 STATIC IMPORTED)
+include_directories("/apps/PM/ovni/git/include/")
+link_directories("/apps/PM/ovni/git/lib/")
+add_library(LIB_OVNI STATIC IMPORTED)
 add_definitions(-DTASK_AWARENESS)
 
 include(cmake/hwloc.cmake)
@@ -188,10 +191,10 @@ endif()
 
 #enable MPI-RMA engine
 if ( LIB_MATH AND LIB_DL AND MPI_FOUND )
-    list(APPEND ENGINES "mpimsg")
+   # list(APPEND ENGINES "mpimsg")
 
     if (MPI_RMA)
-        list(APPEND ENGINES "mpirma")
+     #   list(APPEND ENGINES "mpirma")
     endif()
 
     if (LIB_IBVERBS)
@@ -204,7 +207,7 @@ endif()
 if ( LIB_POSIX_THREADS AND LIB_MATH AND LIB_DL AND MPI_FOUND
         AND MPI_IS_THREAD_COMPAT AND MPI_IS_NOT_OPENMPI1
 	AND LIB_IBVERBS )
-    list(APPEND ENGINES "hybrid")
+    #list(APPEND ENGINES "hybrid")
     set(HYBRID_ENGINE_ENABLED on)
 endif()
 

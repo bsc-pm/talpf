@@ -31,7 +31,7 @@ if (UNIX AND NOT APPLE)
 
 message("Compiling an LPF program for any engine")
 execute_process(
-       COMMAND @bindir@/lpfcc -engine ibverbs --ompss-2 --Wn,-Ofast,-march=native,-ffast-math --Wl,-Ofast,-march=native,-ffast-math -std=gnu99 @srcdir@/test-lpf-nprocs.c -o test-lpf-nprocs
+       COMMAND @bindir@/lpfcc -engine ibverbs --ompss-2 --Wn,-Ofast,-march=native,-ffast-math --Wl,-Ofast,-march=native,-ffast-math -std=gnu99 @srcdir@/test-lpf-nprocs.c -o test-lpf-nprocs -L/apps/PM/ovni/git/lib -I/apps/PM/ovni/git/include -lovni
        WORKING_DIRECTORY @builddir@
        RESULT_VARIABLE status
        )

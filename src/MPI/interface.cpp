@@ -166,12 +166,11 @@ pid_t Interface  :: isAborted() const
 	return m_aborted;
 }
 
-err_t Interface ::	sync(lpf_sync_attr_t attr)
+err_t Interface :: sync(lpf_sync_attr_t attr)
 {
 	if ( 0 == m_aborted )
 	{
 		m_aborted = m_mesgQueue.sync( false, attr );
-		//m_aborted = m_mesgQueue.tasync( false, attr );
 	}
 	
 	if ( 0 == m_aborted )

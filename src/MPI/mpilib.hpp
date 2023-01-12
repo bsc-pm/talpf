@@ -118,6 +118,8 @@ namespace lpf { namespace mpi {
         /// Returns the sum of myElement on all processes.
         void allreduceSum( const int * xs, int *result, int n ) const;
 
+        void iallreduceSum( const int * xs, int *result, int n, void  * request ) const;
+
         /// Returns the max of myElement on all processes.
         int allreduceMax( int myElement ) const ;
 

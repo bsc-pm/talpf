@@ -425,33 +425,23 @@ void MessageQueue :: atomic_cmp_and_swp( memslot_t srcSlot, size_t srcOffset,
 
 int MessageQueue :: sync( bool abort, lpf_sync_attr_t attr )
 {
-#ifdef TASK_AWARENESS
-	const int trials = 5;
-	bool randomize = false;
-	m_vote[0] = abort?1:0;
-	m_vote[1] = m_resized?1:0;
-	LOG(4, "Executing 1st meta-data exchange");
-	if ( m_firstQueue->exchange(m_comm, randomize, m_vote.data(), trials) )
-	{
-		LOG(2, "All " << trials << " sparse all-to-all attempts have failed");
-		throw std::runtime_error("All sparse all-to-all attempts have failed");
-	}
-
-	if ( m_vote[0] != 0 ) {
-		LOG(2, "Abort detected by sparse all-to-all");
-		return m_vote[0];
-	}
-	m_resized = (m_vote[1] > 0);
+	#ifdef TASK_AWARENESS
 
 	m_memreg.sync();
 
-#ifdef LPF_CORE_MPI_USES_ibverbs
-	m_ibverbs.sync( m_resized, attr);
-#endif
+	m_vote[0] = abort?1:0;
+	m_vote[1] = m_resized?1:0;
 
-	m_firstQueue->clear();
+
+#ifdef LPF_CORE_MPI_USES_ibverbs
+	m_ibverbs.sync( m_vote.data(), attr);
+#endif
+	if (m_vote[0] != 0 ) {
+		LOG(2, "Abort detected by sparse all-to-all");
+		return m_vote[0];
+	}
+
 	m_resized = false;
-	ASSERT( m_firstQueue->empty() );
 	return 0;
 #else
 LOG(4, "mpi :: MessageQueue :: sync( abort " << (abort?"true":"false")

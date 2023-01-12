@@ -771,6 +771,21 @@ namespace lpf { namespace mpi {
 		}
 	}
 
+	void Comm :: iallreduceSum( const int * xs, int *result, int n, void * request) const 
+	{
+		int rc = MPI_Iallreduce( 
+				xs,
+				result, n, MPI_INT, MPI_SUM, 
+				this->m_impl->comm() ,
+				(MPI_Request *)request
+				);
+		if ( MPI_SUCCESS != rc )
+		{
+			throw Exception("Could not compute global 'sum' with MPI_Allreduce");
+		}
+	}
+
+
 	int Comm :: allreduceMax( int myElement ) const 
 	{
 		int result = 0;
