@@ -24,7 +24,7 @@ file(GLOB AllSpecificTestSources "*.*.c")
 file(GLOB AllGenericTestSources "*.c")
 list(REMOVE_ITEM AllGenericTestSources ${AllSpecificTestSources})
 
-foreach(LPF_IMPL_ID ${ENGINES})
+foreach(LPF_IMPL_ID ibverbs)
 foreach(debug ON OFF)
     set(LPF_IMPL_CONFIG ${LPFLIB_CONFIG_NAME})
 
