@@ -17,9 +17,7 @@
 
 add_subdirectory(imp)
 add_subdirectory(common)
-add_subdirectory(pthreads)
 add_subdirectory(MPI)
-add_subdirectory(hybrid)
 add_subdirectory(core-libraries)
 add_subdirectory(bsplib)
 add_subdirectory(debug)
