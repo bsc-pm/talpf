@@ -155,7 +155,6 @@ add_library(LIB_NANOS6 STATIC IMPORTED)
 include_directories("/apps/PM/ovni/git/include/")
 link_directories("/apps/PM/ovni/git/lib/")
 add_library(LIB_OVNI STATIC IMPORTED)
-add_definitions(-DTASK_AWARENESS)
 
 include(cmake/hwloc.cmake)
 

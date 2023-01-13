@@ -78,10 +78,8 @@ public:
 	// Do the communication and synchronize
 	// 'Reconnect' must be a globally replicated value
 	void sync( int * vote, int attr );
-#ifdef TASK_AWARENESS
 	void doProgress();
 	void stopProgress();
-#endif
 private:
 
 	IBVerbs & operator=(const IBVerbs & ); // assignment prohibited
@@ -90,13 +88,11 @@ private:
 	void stageQPs(size_t maxMsgs ); 
 	void reconnectQPs(); 
 
-#ifdef TASK_AWARENESS
 	void doLocalProgress();
 	void doRemoteProgress();
 	void processSyncRequest();
 	void processBlock();
 	void getEnvPollingFrequency();
-#endif
 
 
 	struct MemoryRegistration {
@@ -111,7 +107,6 @@ private:
 		std::vector< MemoryRegistration > glob; // array for global registrations
 	};
 
-#ifdef TASK_AWARENESS
 	struct SyncRequest {
 		bool	isActive;
 		bool 	withBarrier;
@@ -123,7 +118,6 @@ private:
 
 	SyncRequest syncRequest;
 	uint32_t pollingFrequency;
-#endif
 
 	int			 m_pid; // local process ID
 	int			 m_nprocs; // number of processes
@@ -142,12 +136,8 @@ private:
 
 	shared_ptr< struct ibv_context > m_device; // device handle
 	shared_ptr< struct ibv_pd >		 m_pd;	   // protection domain
-#ifdef TASK_AWARENESS
 	shared_ptr< struct ibv_cq >		 m_cqLocal;		// complation queue
 	shared_ptr< struct ibv_cq >		 m_cqRemote;	 // complation queue
-#else
-	shared_ptr< struct ibv_cq >		 m_cq;	   // complation queue
-#endif
 
 	// Disconnected queue pairs
 	std::vector< shared_ptr< struct ibv_qp > > m_stagedQps; 
@@ -155,7 +145,6 @@ private:
 	// Connected queue pairs
 	std::vector< shared_ptr< struct ibv_qp > > m_connectedQps; 
 
-#ifdef TASK_AWARENESS
 	std::atomic_int	m_numMsgs;
 	std::atomic_int	*m_numMsgsSync;
 	int		m_recvCount;
@@ -166,20 +155,13 @@ private:
 	int		m_sync_cached_value;
 	void * m_blockRequest;
 	void * m_blockContext;
-#else
-	std::vector< struct ibv_send_wr >	m_srs; // array of send requests	 
-	std::vector< size_t >			m_srsHeads; // head of send queue per peer	   
-	std::vector< size_t >			m_nMsgsPerPeer; // number of messages per peer 
-#endif
 
 
 	SparseSet< pid_t >			 m_activePeers; // 
 	std::vector< pid_t >		 m_peerList;
 
-#ifndef TASK_AWARENESS 
 	std::vector< struct ibv_sge > m_sges; // array of scatter/gather entries
 	std::vector< struct ibv_wc > m_wcs; // array of work completions 
-#endif
 
 	CombinedMemoryRegister< MemorySlot > m_memreg;
 
