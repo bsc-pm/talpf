@@ -117,17 +117,6 @@ else()
     set(CMAKE_CXX_STANDARD_REQUIRED YES)
 endif()
 
-# Dependencies
-set(ENGINES)
-find_library( LIB_POSIX_THREADS
-    NAMES "pthread"
-    DOC   "Posix Threads"
-    )
-
-if ( LIB_POSIX_THREADS )
-#    list(APPEND ENGINES "pthread")
-endif()
-
 find_library( LIB_MATH
         NAMES m
         DOC "Ansi C99 Math library"
@@ -202,13 +191,6 @@ if ( LIB_MATH AND LIB_DL AND MPI_FOUND )
 
 endif()
 
-#enable the hybrid engine
-if ( LIB_POSIX_THREADS AND LIB_MATH AND LIB_DL AND MPI_FOUND
-        AND MPI_IS_THREAD_COMPAT AND MPI_IS_NOT_OPENMPI1
-	AND LIB_IBVERBS )
-    #list(APPEND ENGINES "hybrid")
-    set(HYBRID_ENGINE_ENABLED on)
-endif()
 
 message( STATUS "The following engines will be built: ${ENGINES}")
 
@@ -246,7 +228,6 @@ set( CMAKE_POSITION_INDEPENDENT_CODE ON )
 
 # make sure only the API symbols are exported
 add_definitions(-D_LPFLIB_DLL=1)
-add_definitions(-DBSPLIB_DLL=1)
 
 
 # Tests
@@ -465,7 +446,6 @@ install(EXPORT lpf DESTINATION ${INSTALL_CMAKE_MODULES})
 
 # Install Header files
 install(DIRECTORY "include/lpf"    DESTINATION ${INSTALL_HEADERS})
-install(DIRECTORY "include/bsp" DESTINATION ${INSTALL_HEADERS})
 install(DIRECTORY "include/debug"  DESTINATION ${INSTALL_HEADERS}/lpf )
 
 # Post install actions
