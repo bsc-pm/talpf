@@ -19,7 +19,6 @@ add_subdirectory(imp)
 add_subdirectory(common)
 add_subdirectory(MPI)
 add_subdirectory(core-libraries)
-add_subdirectory(bsplib)
 add_subdirectory(debug)
 
 set(lpf_cflags "${lpf_cflags}" PARENT_SCOPE)
