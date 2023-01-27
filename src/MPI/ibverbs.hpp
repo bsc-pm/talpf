@@ -153,6 +153,8 @@ private:
 	size_t		m_cqSize;
 	bool		m_sync_cached;
 	int		m_sync_cached_value;
+	int		m_sync_counter;
+	int * m_recvCounts;
 	void * m_blockRequest;
 	void * m_blockContext;
 

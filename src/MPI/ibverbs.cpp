@@ -86,6 +86,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	, m_cqSize(1)
 	, m_sync_cached(false)
 	, m_sync_cached_value(0)
+	, m_sync_counter(0)
 	, m_blockRequest(NULL)
 	, m_blockContext(NULL)
 	, m_activePeers(0, m_nprocs)
@@ -231,6 +232,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 				IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE ),
 			ibv_dereg_mr );
 
+	m_recvCounts = (int *)calloc(1024,sizeof(int));
 
 	// Wait for all peers to finish
 	LOG(3, "Queue pairs have been successfully initialized");
@@ -473,7 +475,7 @@ void IBVerbs :: doRemoteProgress(){
 
 	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
 	for(int i = 0; i < pollResult; i++){
-		m_recvCount++;
+		m_recvCounts[wcs[i].imm_data%1024]++;
 		wr.wr_id = wcs[i].wr_id;
 		ibv_post_recv(m_connectedQps[wcs[i].wr_id].get(), &wr, &bad_wr);
 	}
@@ -488,16 +490,17 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.counter = NULL;
 			syncRequest.secondPhase = false;
 			syncRequest.isActive = false;
+			m_sync_counter++;
 			nanos6_decrease_task_event_counter(counter, 1);
 			
 		}
 	}
 	// wait for remote completions
-	else if (m_recvCount >= syncRequest.remoteMsgs){
-		if (m_recvCount > syncRequest.remoteMsgs) //Print warning
+	else if (m_recvCounts[m_sync_counter%1024] >= syncRequest.remoteMsgs){
+		if (m_recvCounts[m_sync_counter%1024] > syncRequest.remoteMsgs) //Print warning
 			LOG(1, "There are more remote completions than the expected");
 
-		m_recvCount -= syncRequest.remoteMsgs;
+		m_recvCounts[m_sync_counter%1024] -= syncRequest.remoteMsgs;
 		syncRequest.remoteMsgs = 0;
 
 		if (syncRequest.withBarrier) {
@@ -508,6 +511,7 @@ void IBVerbs :: processSyncRequest(){
 			void *counter = syncRequest.counter;
 			syncRequest.counter = NULL;
 			syncRequest.isActive = false;
+			m_sync_counter++;
 			nanos6_decrease_task_event_counter(counter, 1);
 		}
 	}
@@ -730,7 +734,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 		sr->sg_list = sge;
 		sr->num_sge = 1;
 		sr->opcode = lastMsg ? IBV_WR_RDMA_WRITE_WITH_IMM : IBV_WR_RDMA_WRITE;
-		sr->imm_data = 0;
+		sr->imm_data = m_sync_counter;
 		sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 		sr->wr.rdma.rkey = dst.glob[dstPid].rkey;
 
@@ -822,7 +826,7 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	sr->sg_list = sge;
 	sr->num_sge = 0;
 	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no READ_WITH_IMM 
-	sr->imm_data = 0;
+	sr->imm_data = m_sync_counter;
 	sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 	sr->wr.rdma.rkey = src.glob[srcPid].rkey;
 
@@ -893,7 +897,7 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 	sr2.sg_list = &sge2;
 	sr2.num_sge = 0;
 	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
-	sr2.imm_data = 0;
+	sr2.imm_data = m_sync_counter;
 	sr2.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 	sr2.wr.rdma.rkey = src.glob[dstPid].rkey;
 
@@ -964,7 +968,7 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 	sr2.sg_list = &sge2;
 	sr2.num_sge = 0;
 	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM; 
-	sr2.imm_data = 0;
+	sr2.imm_data = m_sync_counter;
 	sr2.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 	sr2.wr.rdma.rkey = src.glob[dstPid].rkey;
 
@@ -986,25 +990,36 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 
 void IBVerbs :: sync( int * vote, int attr )
 {
+	
+	int sync_mode = attr & LPF_SYNC_MODE;
+	int sync_value = attr & ~(LPF_SYNC_MODE | LPF_SYNC_BARRIER);
+	int sync_barrier = ((attr & LPF_SYNC_BARRIER) != 0) | (sync_mode == LPF_SYNC_DEFAULT);
 
 	int voted[2];
-	voted[0] = 0;
-	voted[1] = 0;
 
 	
 	//if(m_blockRequest != NULL)
-	m_comm.getRequest(&m_blockRequest);
-	m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
-	m_blockContext = nanos6_get_current_blocking_context();
-	nanos6_block_current_task(m_blockContext);
+	//
+	if(sync_mode == LPF_SYNC_DEFAULT){
+
+		voted[0] = 0;
+		voted[1] = 0;
+		m_comm.getRequest(&m_blockRequest);
+		m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
+		m_blockContext = nanos6_get_current_blocking_context();
+		nanos6_block_current_task(m_blockContext);
+
+		if (voted[0] != 0 ) {
+			vote[0] = voted[0];
+			return;
+		}
+
+		if (voted[1] > 0){
+		 	reconnectQPs();
+		}
+       }
 	
 
-	if (voted[0] != 0 ) {
-		vote[0] = voted[0];
-		return;
-	}
-
-	if (voted[1] > 0) reconnectQPs();
 	
 	if(m_numMsgs > 0) {
 		LOG(2, "There are some RMA operations that still didn't finished, \
@@ -1014,9 +1029,6 @@ void IBVerbs :: sync( int * vote, int attr )
 		while (m_numMsgs > 0);
 	}
 
-	int sync_mode = attr & LPF_SYNC_MODE;
-	int sync_value = attr & ~(LPF_SYNC_MODE | LPF_SYNC_BARRIER);
-	int sync_barrier = ((attr & LPF_SYNC_BARRIER) != 0) | (sync_mode == LPF_SYNC_DEFAULT);
 
 	int remoteMsgs = 0;
 
@@ -1041,6 +1053,7 @@ void IBVerbs :: sync( int * vote, int attr )
 				if(i == m_pid) remoteMsgs = m_comm.allreduceSum(numMsgsSync[i]);
 				else m_comm.allreduceSum(numMsgsSync[i]);
 			}
+			if(sync_mode == LPF_SYNC_DEFAULT) m_sync_cached = false;
 			m_sync_cached_value = remoteMsgs;
 			break;
 		case LPF_SYNC_MSG(0):

@@ -158,7 +158,7 @@ void Interface :: abort()
 	ASSERT( 0 == m_aborted );
 	// signal all other processes at the start of the next 'sync' that
 	// this process aborted.
-	m_aborted = m_mesgQueue.sync( true, 0 );
+	m_aborted = m_mesgQueue.sync( true, LPF_SYNC_DEFAULT );
 }
 
 pid_t Interface  :: isAborted() const
