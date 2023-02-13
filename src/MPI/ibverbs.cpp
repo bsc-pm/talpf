@@ -209,6 +209,15 @@ IBVerbs :: IBVerbs( Communication & comm )
 				<< m_nprocs << " entries" );
 		throw Exception("Could not allocate completion queue");
 	}
+	//fprintf(stderr, "Can resize? %s\n", ((m_deviceAttr.device_cap_flags & IBV_DEVICE_SRQ_RESIZE) == 0)? "No":"Yes");	
+	struct ibv_srq_init_attr srq_init_attr;
+	srq_init_attr.srq_context = NULL;
+	srq_init_attr.attr.max_wr =  m_deviceAttr.max_srq_wr;//2 * m_cqSize * m_nprocs;
+	srq_init_attr.attr.max_sge = m_deviceAttr.max_srq_sge;// 2 *  m_cqSize * m_nprocs;
+	srq_init_attr.attr.srq_limit = 0;
+	m_srq.reset(ibv_create_srq(m_pd.get(), &srq_init_attr ),
+			ibv_destroy_srq);
+
 	atomic_init(&m_numMsgs, 0);
 	m_numMsgsSync = (std::atomic_int *) calloc(m_nprocs, sizeof(std::atomic_int)); 
 	for(int i = 0; i < m_nprocs; i++)
@@ -254,6 +263,7 @@ void IBVerbs :: stageQPs( size_t maxMsgs )
 		attr.sq_sig_all = 0; // only wait for selected messages
 		attr.send_cq = m_cqLocal.get();
 		attr.recv_cq = m_cqRemote.get();
+		attr.srq = m_srq.get();
 		attr.cap.max_send_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs/4);
 		attr.cap.max_recv_wr = std::min<size_t>(maxMsgs + m_minNrMsgs,m_maxSrs/4);
 		attr.cap.max_send_sge = 1;
@@ -348,10 +358,10 @@ void IBVerbs :: reconnectQPs()
 			rr.sg_list = &sge;
 			rr.num_sge = 1;
 
-			if (ibv_post_recv(m_stagedQps[i].get(), &rr, &bad_wr)) {
-				LOG(1, "Cannot post a single receive request to QP " << i );
-				throw Exception("Could not post dummy receive request");
-			}
+			//if (ibv_post_recv(m_stagedQps[i].get(), &rr, &bad_wr)) {
+			//	LOG(1, "Cannot post a single receive request to QP " << i );
+			//	throw Exception("Could not post dummy receive request");
+			//}
 
 			// Bring QP to RTR
 			std::memset(&attr, 0, sizeof(attr));
@@ -437,6 +447,7 @@ void IBVerbs :: doLocalProgress(){
 		for (int i = 0; i < pollResult ; ++i) {
 			if (wcs[i].status != IBV_WC_SUCCESS) 
 			{
+				//fprintf(stderr, "Got bad completion status from IB message.  status = 0x%x , vendor syndrome = 0x%x\n", wcs[i].status, wcs[i].vendor_err);
 				 LOG( 2, "Got bad completion status from IB message."
 					" status = 0x" << std::hex << wcs[i].status
 					<< ", vendor syndrome = 0x" << std::hex
@@ -471,13 +482,13 @@ void IBVerbs :: doRemoteProgress(){
 	wr.next = NULL;
 	wr.sg_list = &sg;
 	wr.num_sge = 0;
+	wr.wr_id = 0;
 
 
 	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
 	for(int i = 0; i < pollResult; i++){
 		m_recvCounts[wcs[i].imm_data%1024]++;
-		wr.wr_id = wcs[i].wr_id;
-		ibv_post_recv(m_connectedQps[wcs[i].wr_id].get(), &wr, &bad_wr);
+		int res = ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
 	}
 }
 
@@ -496,6 +507,7 @@ void IBVerbs :: processSyncRequest(){
 		}
 	}
 	// wait for remote completions
+	
 	else if (m_recvCounts[m_sync_counter%1024] >= syncRequest.remoteMsgs){
 		if (m_recvCounts[m_sync_counter%1024] > syncRequest.remoteMsgs) //Print warning
 			LOG(1, "There are more remote completions than the expected");
@@ -575,16 +587,15 @@ void IBVerbs :: resizeMesgq( size_t size )
 	if (m_cqLocal) { 
 		ibv_resize_cq(m_cqLocal.get(), m_cqSize);
 	}	
-	if(size*m_nprocs >= m_postCount){
+	if(remote_size >= m_postCount){
 		if (m_cqRemote) { 
 			ibv_resize_cq(m_cqRemote.get(),  remote_size);
 		}
 	}
-	
 	stageQPs(m_cqSize);
 
 	if(remote_size >= m_postCount){
-		if (m_cqRemote) { 
+		if (m_srq) { 
 			struct ibv_recv_wr wr;
 			struct ibv_sge sg;
 			struct ibv_recv_wr *bad_wr;
@@ -594,13 +605,10 @@ void IBVerbs :: resizeMesgq( size_t size )
 			wr.next = NULL;
 			wr.sg_list = &sg;
 			wr.num_sge = 0;
-			
-			for(int i = 0; i < (int)remote_size/m_nprocs; ++i){
-				for(int j= 0; j < m_nprocs; j++){
-					wr.wr_id = j;
-					ibv_post_recv(m_stagedQps[j].get(), &wr, &bad_wr);
-					m_postCount++;
-				}
+			wr.wr_id = 0;
+			for(int i = m_postCount; i < (int)remote_size; ++i){
+				int res = ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
+				m_postCount++;
 			}
 		}	
 	}
