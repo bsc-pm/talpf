@@ -136,8 +136,9 @@ private:
 
 	shared_ptr< struct ibv_context > m_device; // device handle
 	shared_ptr< struct ibv_pd >		 m_pd;	   // protection domain
-	shared_ptr< struct ibv_cq >		 m_cqLocal;		// complation queue
-	shared_ptr< struct ibv_cq >		 m_cqRemote;	 // complation queue
+	shared_ptr< struct ibv_cq >		 m_cqLocal;	// complation queue
+	shared_ptr< struct ibv_cq >		 m_cqRemote;	// complation queue
+	shared_ptr< struct ibv_srq >		 m_srq;	 	// shared receive queue
 
 	// Disconnected queue pairs
 	std::vector< shared_ptr< struct ibv_qp > > m_stagedQps; 
@@ -153,6 +154,8 @@ private:
 	size_t		m_cqSize;
 	bool		m_sync_cached;
 	int		m_sync_cached_value;
+	int		m_sync_counter;
+	int * m_recvCounts;
 	void * m_blockRequest;
 	void * m_blockContext;
 
