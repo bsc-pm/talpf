@@ -209,7 +209,6 @@ IBVerbs :: IBVerbs( Communication & comm )
 				<< m_nprocs << " entries" );
 		throw Exception("Could not allocate completion queue");
 	}
-	//fprintf(stderr, "Can resize? %s\n", ((m_deviceAttr.device_cap_flags & IBV_DEVICE_SRQ_RESIZE) == 0)? "No":"Yes");	
 	struct ibv_srq_init_attr srq_init_attr;
 	srq_init_attr.srq_context = NULL;
 	srq_init_attr.attr.max_wr =  m_deviceAttr.max_srq_wr;//2 * m_cqSize * m_nprocs;
@@ -447,7 +446,6 @@ void IBVerbs :: doLocalProgress(){
 		for (int i = 0; i < pollResult ; ++i) {
 			if (wcs[i].status != IBV_WC_SUCCESS) 
 			{
-				//fprintf(stderr, "Got bad completion status from IB message.  status = 0x%x , vendor syndrome = 0x%x\n", wcs[i].status, wcs[i].vendor_err);
 				 LOG( 2, "Got bad completion status from IB message."
 					" status = 0x" << std::hex << wcs[i].status
 					<< ", vendor syndrome = 0x" << std::hex
@@ -488,7 +486,7 @@ void IBVerbs :: doRemoteProgress(){
 	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
 	for(int i = 0; i < pollResult; i++){
 		m_recvCounts[wcs[i].imm_data%1024]++;
-		int res = ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
+		ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
 	}
 }
 
@@ -607,7 +605,7 @@ void IBVerbs :: resizeMesgq( size_t size )
 			wr.num_sge = 0;
 			wr.wr_id = 0;
 			for(int i = m_postCount; i < (int)remote_size; ++i){
-				int res = ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
+				ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
 				m_postCount++;
 			}
 		}	
@@ -706,6 +704,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 
 
 	int numMsgs = size/m_maxMsgSize + (size % m_maxMsgSize > 0); //+1 if last msg size < m_maxMsgSize
+	if(size == 0) numMsgs = 1;
 
 	struct ibv_sge	   sges[numMsgs];
 	struct ibv_send_wr srs[numMsgs];
@@ -784,8 +783,8 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
 
 	for(int i = 0; i< numMsgs; i++){
-	sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
-	sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
+		sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
+		sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
 
 		const char * localAddr 
 			= static_cast<const char *>(dst.glob[m_pid].addr) + dstOffset;
@@ -1006,8 +1005,6 @@ void IBVerbs :: sync( int * vote, int attr )
 	int voted[2];
 
 	
-	//if(m_blockRequest != NULL)
-	//
 	if(sync_mode == LPF_SYNC_DEFAULT){
 
 		voted[0] = 0;
