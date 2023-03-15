@@ -218,7 +218,7 @@ namespace lpf {
         {
             ErrorCondition result = Continue;
             // synchronize to guard memory of 'allC' array.
-            lpf_err_t rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+            lpf_err_t rc = talpf_sync( lpf, LPF_SYNC_DEFAULT );
             if ( LPF_SUCCESS == rc )
             {
                 // broadcast 'allC[pid]' value
@@ -227,7 +227,7 @@ namespace lpf {
                     if (p != pid )
                     {
                         size_t offset = pid * sizeof(ErrorCondition);
-                        rc = lpf_put( lpf, allCSlot, offset, 
+                        rc = talpf_put( lpf, allCSlot, offset, 
                                 p, allCSlot, offset, sizeof(ErrorCondition), 
                                 LPF_MSG_DEFAULT );
 
@@ -237,7 +237,7 @@ namespace lpf {
 
 
                 // synchronize
-                rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+                rc = talpf_sync( lpf, LPF_SYNC_DEFAULT );
                 if ( LPF_SUCCESS == rc )
                 {
                     // and summarize success value
@@ -256,7 +256,7 @@ namespace lpf {
 
                     // synchronize to protect 'allC' array from subsequent
                     // supersteps
-                    rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+                    rc = talpf_sync( lpf, LPF_SYNC_DEFAULT );
                     if ( LPF_SUCCESS != rc )
                     {
                         result = Error;
@@ -289,14 +289,14 @@ namespace lpf {
                 size_t j = m * nprocs + pid;
                 if ( mode == 0 || ( mode == 1 && m % 2 == 0 ) )
                 {
-                    rc = lpf_put( lpf, readSlot, i * blockSize,  
+                    rc = talpf_put( lpf, readSlot, i * blockSize,  
                             p, writeSlot, j * blockSize, blockSize, 
                             LPF_MSG_DEFAULT );
                     ASSERT( LPF_SUCCESS == rc );
                 }
                 else
                 {
-                    rc = lpf_get( lpf, p, readSlot, i * blockSize,  
+                    rc = talpf_get( lpf, p, readSlot, i * blockSize,  
                             writeSlot, j * blockSize, blockSize, 
                             LPF_MSG_DEFAULT );
                     ASSERT( LPF_SUCCESS == rc );
@@ -356,7 +356,7 @@ namespace lpf {
             return LPF_ERR_FATAL; 
         }
 
-        rc = lpf_sync(lpf, LPF_SYNC_DEFAULT );
+        rc = talpf_sync(lpf, LPF_SYNC_DEFAULT );
         if ( rc != LPF_SUCCESS ) 
         {
             LOG(2, "Machine probe could not allocate communication buffer");
@@ -456,7 +456,7 @@ namespace lpf {
             ASSERT( LPF_SUCCESS == rc );
 
 
-            rc = lpf_sync(lpf, LPF_SYNC_DEFAULT );
+            rc = talpf_sync(lpf, LPF_SYNC_DEFAULT );
             if ( rc != LPF_SUCCESS ) 
             {
                 LOG(2, "Machine probe was interrupted, before measuring data points" );
@@ -467,7 +467,7 @@ namespace lpf {
 
             sendMsgs( lpf, pid, nprocs, nMsgs, 0, 
                       blockSize, readSlot, writeSlot );
-            rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+            rc = talpf_sync( lpf, LPF_SYNC_DEFAULT );
 
             if ( rc != LPF_SUCCESS ) 
             {
@@ -523,7 +523,7 @@ namespace lpf {
         {
             for ( size_t i = 0; i < preferredSamples; ++i) 
             {
-                rc = lpf_sync(lpf, LPF_SYNC_DEFAULT );
+                rc = talpf_sync(lpf, LPF_SYNC_DEFAULT );
                 if ( rc != LPF_SUCCESS ) 
                 {
                     LOG(2, "Machine probe was interrupted" );
@@ -533,7 +533,7 @@ namespace lpf {
 
                 sendMsgs( lpf, pid, nprocs, sizeHRels[j], 0, 
                           blockSize, readSlot, writeSlot );
-                rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+                rc = talpf_sync( lpf, LPF_SYNC_DEFAULT );
 
                 if ( rc != LPF_SUCCESS ) 
                 {
@@ -598,14 +598,14 @@ namespace lpf {
            size_t size = szDbl * N;
            size_t wOffset = pid * size;
            if (p != pid) {
-              rc = lpf_put( lpf, allTimingsSlot, wOffset,
+              rc = talpf_put( lpf, allTimingsSlot, wOffset,
                    p, allTimingsSlot, wOffset, size, 
                    LPF_MSG_DEFAULT );
               ASSERT( LPF_SUCCESS == rc );
            }
        }
 
-       rc = lpf_sync( lpf, LPF_SYNC_DEFAULT );
+       rc = talpf_sync( lpf, LPF_SYNC_DEFAULT );
 
        if ( LPF_SUCCESS != rc )
        {

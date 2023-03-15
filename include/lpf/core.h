@@ -1839,7 +1839,7 @@ lpf_err_t lpf_deregister(
  */
 
 extern _LPFLIB_API
-lpf_err_t lpf_put(
+lpf_err_t talpf_put(
     lpf_t ctx,
     lpf_memslot_t src_slot,
     size_t src_offset,
@@ -1968,7 +1968,7 @@ lpf_err_t lpf_put(
  */
 
 extern _LPFLIB_API
-lpf_err_t lpf_get(
+lpf_err_t talpf_get(
     lpf_t ctx,
     lpf_pid_t src_pid,
     lpf_memslot_t src_slot,
@@ -1980,7 +1980,7 @@ lpf_err_t lpf_get(
 );
 
 extern _LPFLIB_API
-lpf_err_t lpf_atomic_fetch_and_add( 
+lpf_err_t talpf_atomic_fetch_and_add( 
 	lpf_t ctx,
 	lpf_memslot_t src_slot, 
 	size_t src_offset,
@@ -1991,7 +1991,7 @@ lpf_err_t lpf_atomic_fetch_and_add(
 );
 
 extern _LPFLIB_API
-lpf_err_t lpf_atomic_cmp_and_swp( 
+lpf_err_t talpf_atomic_cmp_and_swp( 
 	lpf_t ctx, 
 	lpf_memslot_t src_slot, 
 	size_t src_offset,
@@ -2050,7 +2050,7 @@ lpf_err_t lpf_atomic_cmp_and_swp(
  */
 
 extern _LPFLIB_API
-lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
+lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr );
 
 /**
  * This primitive allows a user to inspect the machine that this LPF program

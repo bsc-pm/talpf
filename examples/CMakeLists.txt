@@ -15,5 +15,5 @@
 # limitations under the License.
 #
 
-add_subdirectory( list )
+#add_subdirectory( list )
 

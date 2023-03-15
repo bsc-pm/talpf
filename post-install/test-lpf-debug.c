@@ -32,23 +32,23 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     if (pid == 0) broadcast = 10 - (int) pid;
 
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 
 
     lpf_memslot_t bc_slot = LPF_INVALID_MEMSLOT;
     lpf_register_global( lpf, &broadcast, sizeof(broadcast), &bc_slot);
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 
     if (pid != 0) 
 #pragma oss task
-        lpf_get( lpf, 0, bc_slot, 0, bc_slot, 0, sizeof(broadcast), LPF_MSG_DEFAULT );
+        talpf_get( lpf, 0, bc_slot, 0, bc_slot, 0, sizeof(broadcast), LPF_MSG_DEFAULT );
 #pragma oss taskwait
 
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 }
 
