@@ -74,7 +74,7 @@ function printhelp()
 
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 	if [ -z "$LPF_CC" ]; then
-	    /apps/GCC/7.2.0/bin/gcc --help
+	    gcc --help
 	else
 		$LPF_CC --help
 	fi
@@ -236,8 +236,8 @@ if [ $doPrinthelp = yes ]; then
 fi
 
 if [ -z "$LPF_CC" ]; then
-    compiler="/apps/GCC/7.2.0/bin/gcc"
-    linker="/apps/GCC/7.2.0/bin/g++"
+    compiler="gcc"
+    linker="g++"
 else
 	compiler="$LPF_CC"
 	linker="$LPF_CC"
