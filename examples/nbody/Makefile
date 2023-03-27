@@ -30,19 +30,19 @@ TALPF_SOURCES=                          \
     src/main.c
 
 BIN=	\
-08.nbody_talpf_default_ompss_tasks.$(BIGO).$(BS)bs.bin \
-09.nbody_talpf_cached_ompss_tasks.$(BIGO).$(BS)bs.bin \
-10.nbody_talpf_cached_ack_ompss_tasks.$(BIGO).$(BS)bs.bin
+nbody_talpf_default.$(BIGO).$(BS)bs.bin \
+nbody_talpf_cached.$(BIGO).$(BS)bs.bin \
+nbody_talpf_cached_ack.$(BIGO).$(BS)bs.bin
 
 all: $(BIN)
 
-08.nbody_talpf_default_ompss_tasks.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/08.solver_talpf_default_ompss_tasks.c
+nbody_talpf_default.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_default.c
 	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
-09.nbody_talpf_cached_ompss_tasks.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/09.solver_talpf_cached_ompss_tasks.c
+nbody_talpf_cached.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_cached.c
 	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
-10.nbody_talpf_cached_ack_ompss_tasks.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/10.solver_talpf_cached_ack_ompss_tasks.c
+nbody_talpf_cached_ack.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_cached_ack.c
 	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 

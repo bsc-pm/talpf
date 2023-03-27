@@ -12,8 +12,8 @@ export TALPF_POLLING_FREQUENCY=100
 export LPF_ENGINE="ibverbs"
 
 echo "TALPF (DEFAULT)"
-srun -n $n -N $N -c $c ./08.nbody_talpf_default_ompss_tasks.N2.512bs.bin -p $((1024 * 64)) -t 100 
+srun -n $n -N $N -c $c ./nbody_talpf_default.N2.512bs.bin -p $((1024 * 64)) -t 100 
 echo "TALPF (CACHED)"
-srun -n $n -N $N -c $c ./09.nbody_talpf_cached_ompss_tasks.N2.512bs.bin -p $((1024 * 64)) -t 100
+srun -n $n -N $N -c $c ./nbody_talpf_cached.N2.512bs.bin -p $((1024 * 64)) -t 100
 echo "TALPF (ACK)"
-srun -n $n -N $N -c $c ./10.nbody_talpf_cached_ack_ompss_tasks.N2.512bs.bin -p $((1024 * 64)) -t 100
+srun -n $n -N $N -c $c ./nbody_talpf_cached_ack.N2.512bs.bin -p $((1024 * 64)) -t 100
