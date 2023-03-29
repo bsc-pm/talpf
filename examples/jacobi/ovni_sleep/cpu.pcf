@@ -1,0 +1,110 @@
+DEFAULT_OPTIONS
+
+LEVEL               THREAD
+UNITS               NANOSEC
+LOOK_BACK           100
+SPEED               1
+FLAG_ICONS          ENABLED
+NUM_OF_STATE_COLORS 1000
+YMAX_SCALE          37
+
+
+DEFAULT_SEMANTIC
+
+THREAD_FUNC         State As Is
+
+
+STATES_COLOR
+0   {  0,   0,   0}
+1   {  0, 130, 200}
+2   {217, 217, 217}
+3   {230,  25,  75}
+4   { 60, 180,  75}
+5   {255, 225,  25}
+6   {245, 130,  48}
+7   {145,  30, 180}
+8   { 70, 240, 240}
+9   {240,  50, 230}
+10  {210, 245,  60}
+11  {250, 190, 212}
+12  {  0, 128, 128}
+13  {128, 128, 128}
+14  {220, 190, 255}
+15  {170, 110,  40}
+16  {255, 250, 200}
+17  {128,   0,   0}
+18  {170, 255, 195}
+19  {128, 128,   0}
+20  {255, 215, 180}
+21  {  0,   0, 128}
+22  {  0,   0, 255}
+
+
+EVENT_TYPE
+0 7          Flushing ovni buffer of the RUNNING thread
+VALUES
+1    Flushing
+
+
+EVENT_TYPE
+0 35         Nanos6 task ID of the RUNNING thread
+VALUES
+
+
+EVENT_TYPE
+0 36         Nanos6 task type of the RUNNING thread
+VALUES
+2062181581 sync
+1806506819 sleep
+41129453 block computation
+727836217 put upper inner
+1855794399 put lower inner
+1423278814 main
+161506229 POLLING_TASK
+
+
+EVENT_TYPE
+0 37         Nanos6 subsystem of the RUNNING thread
+VALUES
+1    Task: Running body
+2    Task: Creating
+3    Task: Submitting
+4    Task: Spawning function
+5    Task: Running task for
+8    Scheduler: Serving tasks
+6    Scheduler: Adding ready tasks
+7    Scheduler: Processing ready tasks
+9    Dependency: Registering
+10   Dependency: Unregistering
+11   Blocking: Taskwait
+13   Blocking: Blocking current task
+14   Blocking: Unblocking remote task
+12   Blocking: Wait for deadline
+17   Worker: Handling task
+18   Worker: Looking for work
+19   Worker: Switching to another thread
+20   Worker: Migrating CPU
+21   Worker: Suspending thread
+22   Worker: Resuming another thread
+15   Memory: Allocating
+16   Memory: Freeing
+61   EV Scheduler: Send task
+60   EV Scheduler: Recv task
+62   EV Scheduler: Self-assign task
+63   EV CPU: Becomes idle
+64   EV CPU: Becomes active
+65   EV Worker: Waking another thread
+
+
+EVENT_TYPE
+0 38         Nanos6 task MPI rank of the RUNNING thread
+VALUES
+
+
+EVENT_TYPE
+0 39         Nanos6 thread type of the RUNNING thread
+VALUES
+4    External
+3    Worker
+1    Leader
+2    Main

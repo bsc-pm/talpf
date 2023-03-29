@@ -1,0 +1,395 @@
+DEFAULT_OPTIONS
+
+LEVEL               THREAD
+UNITS               NANOSEC
+LOOK_BACK           100
+SPEED               1
+FLAG_ICONS          ENABLED
+NUM_OF_STATE_COLORS 1000
+YMAX_SCALE          37
+
+
+DEFAULT_SEMANTIC
+
+THREAD_FUNC         State As Is
+
+
+STATES_COLOR
+0   {  0,   0,   0}
+1   {  0, 130, 200}
+2   {217, 217, 217}
+3   {230,  25,  75}
+4   { 60, 180,  75}
+5   {255, 225,  25}
+6   {245, 130,  48}
+7   {145,  30, 180}
+8   { 70, 240, 240}
+9   {240,  50, 230}
+10  {210, 245,  60}
+11  {250, 190, 212}
+12  {  0, 128, 128}
+13  {128, 128, 128}
+14  {220, 190, 255}
+15  {170, 110,  40}
+16  {255, 250, 200}
+17  {128,   0,   0}
+18  {170, 255, 195}
+19  {128, 128,   0}
+20  {255, 215, 180}
+21  {  0,   0, 128}
+22  {  0,   0, 255}
+
+
+EVENT_TYPE
+0 6          Thread: CPU affinity
+VALUES
+1     CPU 0.0
+2     CPU 0.1
+3     CPU 0.2
+4     CPU 0.3
+5     CPU 0.4
+6     CPU 0.5
+7     CPU 0.6
+8     CPU 0.7
+9     CPU 0.8
+10    CPU 0.9
+11    CPU 0.10
+12    CPU 0.11
+13    CPU 0.12
+14    CPU 0.13
+15    CPU 0.14
+16    CPU 0.15
+17    CPU 0.16
+18    CPU 0.17
+19    CPU 0.18
+20    CPU 0.19
+21    CPU 0.20
+22    CPU 0.21
+23    CPU 0.22
+24    CPU 0.23
+25    CPU 0.24
+26    CPU 0.25
+27    CPU 0.26
+28    CPU 0.27
+29    CPU 0.28
+30    CPU 0.29
+31    CPU 0.30
+32    CPU 0.31
+33   vCPU 0.*
+34    CPU 1.32
+35    CPU 1.33
+36    CPU 1.34
+37    CPU 1.35
+38    CPU 1.36
+39    CPU 1.37
+40    CPU 1.38
+41    CPU 1.39
+42    CPU 1.40
+43    CPU 1.41
+44    CPU 1.42
+45    CPU 1.43
+46    CPU 1.44
+47    CPU 1.45
+48    CPU 1.46
+49    CPU 1.47
+50    CPU 1.48
+51    CPU 1.49
+52    CPU 1.50
+53    CPU 1.51
+54    CPU 1.52
+55    CPU 1.53
+56    CPU 1.54
+57    CPU 1.55
+58    CPU 1.56
+59    CPU 1.57
+60    CPU 1.58
+61    CPU 1.59
+62    CPU 1.60
+63    CPU 1.61
+64    CPU 1.62
+65    CPU 1.63
+66   vCPU 1.*
+67    CPU 2.64
+68    CPU 2.65
+69    CPU 2.66
+70    CPU 2.67
+71    CPU 2.68
+72    CPU 2.69
+73    CPU 2.70
+74    CPU 2.71
+75    CPU 2.72
+76    CPU 2.73
+77    CPU 2.74
+78    CPU 2.75
+79    CPU 2.76
+80    CPU 2.77
+81    CPU 2.78
+82    CPU 2.79
+83    CPU 2.80
+84    CPU 2.81
+85    CPU 2.82
+86    CPU 2.83
+87    CPU 2.84
+88    CPU 2.85
+89    CPU 2.86
+90    CPU 2.87
+91    CPU 2.88
+92    CPU 2.89
+93    CPU 2.90
+94    CPU 2.91
+95    CPU 2.92
+96    CPU 2.93
+97    CPU 2.94
+98    CPU 2.95
+99   vCPU 2.*
+100   CPU 3.96
+101   CPU 3.97
+102   CPU 3.98
+103   CPU 3.99
+104   CPU 3.100
+105   CPU 3.101
+106   CPU 3.102
+107   CPU 3.103
+108   CPU 3.104
+109   CPU 3.105
+110   CPU 3.106
+111   CPU 3.107
+112   CPU 3.108
+113   CPU 3.109
+114   CPU 3.110
+115   CPU 3.111
+116   CPU 3.112
+117   CPU 3.113
+118   CPU 3.114
+119   CPU 3.115
+120   CPU 3.116
+121   CPU 3.117
+122   CPU 3.118
+123   CPU 3.119
+124   CPU 3.120
+125   CPU 3.121
+126   CPU 3.122
+127   CPU 3.123
+128   CPU 3.124
+129   CPU 3.125
+130   CPU 3.126
+131   CPU 3.127
+132  vCPU 3.*
+133   CPU 4.0
+134   CPU 4.1
+135   CPU 4.2
+136   CPU 4.3
+137   CPU 4.4
+138   CPU 4.5
+139   CPU 4.6
+140   CPU 4.7
+141   CPU 4.8
+142   CPU 4.9
+143   CPU 4.10
+144   CPU 4.11
+145   CPU 4.12
+146   CPU 4.13
+147   CPU 4.14
+148   CPU 4.15
+149   CPU 4.16
+150   CPU 4.17
+151   CPU 4.18
+152   CPU 4.19
+153   CPU 4.20
+154   CPU 4.21
+155   CPU 4.22
+156   CPU 4.23
+157   CPU 4.24
+158   CPU 4.25
+159   CPU 4.26
+160   CPU 4.27
+161   CPU 4.28
+162   CPU 4.29
+163   CPU 4.30
+164   CPU 4.31
+165  vCPU 4.*
+166   CPU 5.32
+167   CPU 5.33
+168   CPU 5.34
+169   CPU 5.35
+170   CPU 5.36
+171   CPU 5.37
+172   CPU 5.38
+173   CPU 5.39
+174   CPU 5.40
+175   CPU 5.41
+176   CPU 5.42
+177   CPU 5.43
+178   CPU 5.44
+179   CPU 5.45
+180   CPU 5.46
+181   CPU 5.47
+182   CPU 5.48
+183   CPU 5.49
+184   CPU 5.50
+185   CPU 5.51
+186   CPU 5.52
+187   CPU 5.53
+188   CPU 5.54
+189   CPU 5.55
+190   CPU 5.56
+191   CPU 5.57
+192   CPU 5.58
+193   CPU 5.59
+194   CPU 5.60
+195   CPU 5.61
+196   CPU 5.62
+197   CPU 5.63
+198  vCPU 5.*
+199   CPU 6.64
+200   CPU 6.65
+201   CPU 6.66
+202   CPU 6.67
+203   CPU 6.68
+204   CPU 6.69
+205   CPU 6.70
+206   CPU 6.71
+207   CPU 6.72
+208   CPU 6.73
+209   CPU 6.74
+210   CPU 6.75
+211   CPU 6.76
+212   CPU 6.77
+213   CPU 6.78
+214   CPU 6.79
+215   CPU 6.80
+216   CPU 6.81
+217   CPU 6.82
+218   CPU 6.83
+219   CPU 6.84
+220   CPU 6.85
+221   CPU 6.86
+222   CPU 6.87
+223   CPU 6.88
+224   CPU 6.89
+225   CPU 6.90
+226   CPU 6.91
+227   CPU 6.92
+228   CPU 6.93
+229   CPU 6.94
+230   CPU 6.95
+231  vCPU 6.*
+232   CPU 7.96
+233   CPU 7.97
+234   CPU 7.98
+235   CPU 7.99
+236   CPU 7.100
+237   CPU 7.101
+238   CPU 7.102
+239   CPU 7.103
+240   CPU 7.104
+241   CPU 7.105
+242   CPU 7.106
+243   CPU 7.107
+244   CPU 7.108
+245   CPU 7.109
+246   CPU 7.110
+247   CPU 7.111
+248   CPU 7.112
+249   CPU 7.113
+250   CPU 7.114
+251   CPU 7.115
+252   CPU 7.116
+253   CPU 7.117
+254   CPU 7.118
+255   CPU 7.119
+256   CPU 7.120
+257   CPU 7.121
+258   CPU 7.122
+259   CPU 7.123
+260   CPU 7.124
+261   CPU 7.125
+262   CPU 7.126
+263   CPU 7.127
+264  vCPU 7.*
+
+
+EVENT_TYPE
+0 2          Thread: TID of the ACTIVE thread
+VALUES
+
+
+EVENT_TYPE
+0 4          Thread: thread state
+VALUES
+0    Unknown
+1    Running
+2    Paused
+3    Dead
+4    Cooling
+5    Warming
+
+
+EVENT_TYPE
+0 7          Flushing ovni buffer 
+VALUES
+1    Flushing
+
+
+EVENT_TYPE
+0 35         Nanos6 task ID of the RUNNING thread
+VALUES
+
+
+EVENT_TYPE
+0 36         Nanos6 task type of the RUNNING thread
+VALUES
+2062181581 sync
+1806506819 sleep
+41129453 block computation
+727836217 put upper inner
+1855794399 put lower inner
+1423278814 main
+161506229 POLLING_TASK
+
+
+EVENT_TYPE
+0 37         Nanos6 subsystem of the ACTIVE thread
+VALUES
+1    Task: Running body
+2    Task: Creating
+3    Task: Submitting
+4    Task: Spawning function
+5    Task: Running task for
+8    Scheduler: Serving tasks
+6    Scheduler: Adding ready tasks
+7    Scheduler: Processing ready tasks
+9    Dependency: Registering
+10   Dependency: Unregistering
+11   Blocking: Taskwait
+13   Blocking: Blocking current task
+14   Blocking: Unblocking remote task
+12   Blocking: Wait for deadline
+17   Worker: Handling task
+18   Worker: Looking for work
+19   Worker: Switching to another thread
+20   Worker: Migrating CPU
+21   Worker: Suspending thread
+22   Worker: Resuming another thread
+15   Memory: Allocating
+16   Memory: Freeing
+61   EV Scheduler: Send task
+60   EV Scheduler: Recv task
+62   EV Scheduler: Self-assign task
+63   EV CPU: Becomes idle
+64   EV CPU: Becomes active
+65   EV Worker: Waking another thread
+
+
+EVENT_TYPE
+0 38         Nanos6 task MPI rank of the RUNNING thread
+VALUES
+
+
+EVENT_TYPE
+0 39         Nanos6 thread type 
+VALUES
+4    External
+3    Worker
+1    Leader
+2    Main
