@@ -1,0 +1,94 @@
++------------------------------+
+|            Jacobi            |
++------------------------------+
+
+Heat diffusion of a matrix using the Jacobi algorithm, where the matrix is divided between ranks by rows. 
++--------------+
+|      R1      |
++--------------+
+|      R2      |
++--------------+
+|      R3      |
++--------------+
+|      R4      |
++--------------+
+Each rank uses OmpSs-2 tasks to exploit inter-node parallelism, and talpf_put (with talpf_sync) to share the halos (top/bottom of their share of the matrix) between ranks. 
+
+Prerequisites
+=============
+	- gcc >= 11.0.0
+	- OmpSs-2 (git) (Mercurium, nanos6 and ovni)
+
+Versions
+========
+	- heat_talpf_default.bin: Using talpf_sync with LPF_SYNC_DEFAULT mode.
+	- heat_talpf_cached.bin: Using talpf_sync with LPF_SYNC_CACHED mode.
+	- heat_talpf_default_sleep.bin: Same as heat_talpf_cached.bin but with a sleep in iteration four at the first and last rank.
+
+Compilation
+===========
+	- All versions: 'make'
+	- Only one version: 'make heat_talpf_{version}.bin'
+
+Execution
+=========
+	
+	Uage: ./heat_talpf_{version}.bin <-s size> | <-r rows -c cols> <-t timesteps> [OPTION]...
+	'./heat_talpf_{version}.bin -h', to print all the parameters
+
+	Example of a slurm script in jacobi/run.sh.
+	Execution:
+	'sbatch -n NPOCS -N NNODES -C NCPUS ./run.sh'	NPROCS as the number of processes, NNODES as the nodes where the ranks will be distributed and NCPUS as the number of CPUs assigned per process.
+
+Instrumentation (ovni)
+=====================
+	1) Execute the code with the OmpSs-2 instrumentation set to "ovni" e.g. run_ovni.sh
+		1.1) If the execution uses more than one node use 'srun onvisync' in the same execution, e.g. run_ovni.sh
+	2) Excute 'ovniemu ovni/', to generate a trace
+	3) Execute 'wxparaver ovni/cpu.prv' to visuzlize the trace
+		3.1) To visualize the task names, load configuration 'ovni/cfg/cpu/nanos6/task-type.cfg'
+
+
+
+
+
+
+
++------------------------------+
+|             Nbody            |
++------------------------------+
+
+Particle simulation, where the particles are divided between ranks.
+Each rank uses OmpSs-2 tasks to exploit inter-node parallelism, and talpf_put (with talpf_sync) to exchange their particles information to alculate te forces in a ring pattern.
+
+Prerequisites
+=============
+	- gcc >= 11.0.0
+	- OmpSs-2 (git) (Mercurium, nanos6 and ovni)
+
+Versions
+========
+	 - nbody_talpf_default.{BIGO}.{BS}bs.bin: Using talpf_sync with LPF_SYNC_DEFAULT mode. 
+	 - nbody_talpf_cached.{BIGO}.{BS}bs.bin: Using talpf_sync with LPF_SYNC_CACHED|LPF_SYNC_BARRIER if does the talpf_put, and talpf_sync with LPF_SYNC_MSG(0)|LPF_SYNC_BARRIER if it doesn't do any talp_put. The LPF_SYNC_BARRIER is necessary because the communication is unidirectional. The LPF_SYNC_MSG mode does not reset the cached value.
+	 - nbody_talpf_cached_ack.{BIGO}.{BS}bs.bin: Similar to the previous one, but adding a dummy message to the sending rank to make the comunnication bidirectional, to avoid the LPF_SYNC_BARRIER.
+
+
+Compilation
+===========
+	- All versions: 'make'
+	- Only one version: 'make nbody_talpf_{version}.{BIGO}.{BS}bs.bin'
+
+	To change the BS and/or BIGO, modify the Makefile with the corresponding value:
+		BIGO = {N2, N, NlogN}
+		BS >= 0
+
+Execution
+=========
+	Usage: ./nbody_talpf_{version}.{BIGO}.{BS}bs.bin <-p particles> <-t timesteps> [OPTION]...
+	'./nbody_talpf_{version}.{BIGO}.{BS}bs.bin -h', to print all parameters.
+	
+	Example of a slurm script in jacobi/run.sh (BS=512, BIGO=N2).
+	Execution:
+	'sbatch -n NPOCS -N NNODES -C NCPUS ./run.sh'	 NPROCS as the number of processes, NNODES as the nodes where the ranks will be distributed and NCPUS as the number of CPUs assigned per process.
+
+
