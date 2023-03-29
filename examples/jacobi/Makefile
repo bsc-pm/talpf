@@ -20,11 +20,10 @@ KFLAGS=$(CFLAGS)
 # Linker flags
 LDFLAGS=-lrt -lm
 
-# TAMPI flags
-
 # LPF flags
 LPF_CFLAGS=-engine ibverbs
 OVNI_FLAGS=-L/apps/PM/ovni/git/lib -I/apps/PM/ovni/git/include -lovni
+
 # List of programs
 BIN=heat_talpf_default.bin
 BIN+=heat_talpf_cached.bin

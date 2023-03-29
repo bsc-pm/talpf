@@ -40,10 +40,10 @@ nbody_talpf_default.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_defau
 	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 nbody_talpf_cached.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_cached.c
-	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
+	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 nbody_talpf_cached_ack.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_cached_ack.c
-	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
+	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 
 clean:
