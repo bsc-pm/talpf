@@ -21,7 +21,6 @@ MCCFLAGS= --ompss-2 --Wn,-Ofast,-march=native,-ffast-math --Wl,-Ofast,-march=nat
 LDFLAGS= -lrt -lm
 
 LPF_CFLAGS=-engine ibverbs
-OVNI_FLAGS=-L/apps/PM/ovni/git/lib -I/apps/PM/ovni/git/include -lovni
 
 TALPF_SOURCES=                          \
     src/common.c			\
@@ -37,13 +36,13 @@ nbody_talpf_cached_ack.$(BIGO).$(BS)bs.bin
 all: $(BIN)
 
 nbody_talpf_default.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_default.c
-	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
+	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 nbody_talpf_cached.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_cached.c
-	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
+	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 nbody_talpf_cached_ack.$(BIGO).$(BS)bs.bin: $(TALPF_SOURCES) src/solver_talpf_cached_ack.c
-	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(OVNI_FLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
+	$(MCC_WRAPPERS) $(LPFCC) $(LPF_CFLAGS) $(CPPFLAGS) $(MCCFLAGS) -o $@ $^ $(LDFLAGS)
 
 
 clean:
