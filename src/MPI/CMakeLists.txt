@@ -17,10 +17,10 @@
 
 if (MPI_FOUND)
 
-    set(MPI_ENGINES mpimsg)
-    if (MPI_RMA)
-        list(APPEND MPI_ENGINES mpirma)
-    endif()
+ #   set(MPI_ENGINES mpimsg)
+  #  if (MPI_RMA)
+   #     list(APPEND MPI_ENGINES mpirma)
+   # endif()
 
     if (LIB_IBVERBS)
         list(APPEND MPI_ENGINES ibverbs)
