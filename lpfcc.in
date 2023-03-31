@@ -283,7 +283,8 @@ do
 done
 
 case $engine in
-  mpimsg|mpirma|ibverbs) stdlibs=( $MPI_HOME/lib/libmpi.so /usr/lib64/libdl.so /usr/lib64/librt.so -lpthread ${stdlibs[@]} ) ;;
+  #mpimsg|mpirma|ibverbs) stdlibs=( $MPI_HOME/lib/libmpi.so /usr/lib64/libdl.so /usr/lib64/librt.so -lpthread ${stdlibs[@]} ) ;;
+  ibverbs) stdlibs=( $MPI_HOME/lib/libmpi.so -ldl -lrt -lpthread ${stdlibs[@]} ) ;;
   *)                     ;;
 esac
 
