@@ -24,9 +24,7 @@
 #include "assert.hpp"
 #include "linkage.hpp"
 
-#ifdef LPF_CORE_MPI_USES_ibverbs
 #include "ibverbs.hpp"
-#endif
 
 
 #include <vector>
@@ -38,24 +36,14 @@ namespace lpf {
 
 class _LPFLIB_LOCAL MemoryTable
 {
-#ifdef LPF_CORE_MPI_USES_mpirma
-    typedef Communication::Memslot Window;
-#endif
 
     struct Memory {
         char *addr; size_t size; 
-#ifdef LPF_CORE_MPI_USES_ibverbs
         mpi::IBVerbs::SlotID slot;
         Memory( void * a, size_t s, mpi::IBVerbs::SlotID sl)
             : addr(static_cast<char *>(a))
             , size(s), slot(sl) {}
         Memory() : addr(NULL), size(0u), slot(-1) {}
-#else
-        Memory( void * a, size_t s)
-            : addr(static_cast<char *>(a))
-            , size(s) {}
-        Memory() : addr(NULL), size(0u) {}
-#endif
     };
     typedef CombinedMemoryRegister<Memory> Register;
 
@@ -65,11 +53,7 @@ public:
     static Slot invalidSlot() 
     { return Register::invalidSlot(); }
 
-#ifdef LPF_CORE_MPI_USES_ibverbs
     explicit MemoryTable( Communication & comm, mpi::IBVerbs & verbs );
-#else
-    explicit MemoryTable( Communication & comm );
-#endif
 
     Slot addLocal( void * mem, std::size_t size ) ; // nothrow
 
@@ -85,15 +69,8 @@ public:
     size_t getSize( Slot slot ) const // nothrow
     {   return m_memreg.lookup(slot).size; }
 
-#ifdef LPF_CORE_MPI_USES_mpirma
-    Window getWindow( Slot slot ) const  // nothrow
-    { return m_windows[ slot ]; }
-#endif
-
-#ifdef  LPF_CORE_MPI_USES_ibverbs
     mpi::IBVerbs::SlotID getVerbID( Slot slot ) const
     { return m_memreg.lookup( slot ).slot; }
-#endif
 
     void reserve( size_t size ); // throws bad_alloc, strong safe
     size_t capacity() const;
@@ -111,18 +88,10 @@ private:
 
     Register       m_memreg;
     size_t m_capacity;
-#ifdef LPF_CORE_MPI_USES_mpirma
-    typedef std::vector< Window > WindowTable;
-    WindowTable    m_windows;
-    DirtyList      m_added, m_removed;
-    Communication & m_comm;
-#endif
 
-#ifdef LPF_CORE_MPI_USES_ibverbs
     DirtyList      m_added;
     mpi::IBVerbs  & m_ibverbs;
     Communication & m_comm;
-#endif
 };
 
 

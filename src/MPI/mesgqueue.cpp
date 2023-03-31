@@ -87,28 +87,14 @@ MessageQueue :: MessageQueue( Communication & comm )
 	, m_tinyMsgSize( Config::instance().getTinyMsgSize().sizeForMPI )
 	, m_smallMsgSize( 2 * (1 << Config::instance().getMpiMsgSortGrainSizePower()) )
 	, m_vote( 2 )
-	, m_firstQueue( newQueue(m_pid, m_nprocs) )
-	, m_secondQueue( newQueue(m_pid, m_nprocs) )
 	, m_maxNMsgs( 0 )
 	, m_nextMemRegSize( 0 )
 	, m_resized( false )
 	, m_msgsort()
-	, m_bodyRequests()
-	, m_edgeRecv()
-	, m_edgeSend()
-	, m_edgeBuffer()
-#if defined LPF_CORE_MPI_USES_mpirma || defined LPF_CORE_MPI_USES_ibverbs
 	, m_edgeBufferSlot( m_memreg.invalidSlot() )
-#endif
-	, m_bodySends()
-	, m_bodyRecvs()
 	, m_comm( dynamic_cast<mpi::Comm &>(comm) )
-#ifdef LPF_CORE_MPI_USES_ibverbs
 	, m_ibverbs( m_comm )
 	, m_memreg( m_comm, m_ibverbs )
-#else
-	, m_memreg( m_comm )
-#endif
 	, m_tinyMsgBuf( m_tinyMsgSize + largestHeader(m_nprocs, m_memRange, 0, 0))
 {
 	m_memreg.reserve(1); // reserve slot for edgeBuffer
@@ -120,33 +106,15 @@ err_t MessageQueue :: resizeMesgQueue( size_t nMsgs )
 	const size_t nRegs = m_memreg.capacity();
 	const size_t maxHdrSize =
 		largestHeader( m_nprocs, m_memRange, nRegs, maxNMsgs );
-	const size_t maxMsgSize = m_tinyMsgSize + maxHdrSize;
-
-	if ( nMsgs > m_firstQueue->max_size(maxMsgSize) / 2
-			|| nMsgs > std::numeric_limits<size_t>::max() / 6
+	//const size_t maxMsgSize = m_tinyMsgSize + maxHdrSize;
+	if ( nMsgs > std::numeric_limits<size_t>::max()
 			|| nMsgs > std::numeric_limits<size_t>::max() / m_smallMsgSize )
 	{
 		LOG( 2, "Requested message queue size exceeds theoretical capacity");
 		return LPF_ERR_OUT_OF_MEMORY;
 	}
 
-	ASSERT( nMsgs <= m_firstQueue->max_size(maxMsgSize) / 2 );
-
 	size_t mult = 2;
-	// one factor two is required because write conflict resolution can
-	// fragment messages
-
-	// The sparse all-to-all needs a bit more buffer memory
-	// Compute using Chernoff bounds the maximum congestion
-	if ( dynamic_cast<mpi::SparseAllToAll*>(&*m_firstQueue))
-	{
-		double max_h = (double) mult*nMsgs;
-		double epsilon = 1e-20; // acceptable probability of failure
-		if ( exp( -0.3333 * max_h ) < epsilon )
-			mult *= 2;
-		else
-			mult *= size_t(3 - std::log( epsilon ) / max_h );
-	}
 
 	if ( (double) nMsgs > (double) std::numeric_limits<size_t>::max() / mult)
 	{
@@ -164,24 +132,7 @@ err_t MessageQueue :: resizeMesgQueue( size_t nMsgs )
 	m_resized = true;
 	try
 	{
-		m_firstQueue->reserve( newCap,	maxMsgSize );
-		m_secondQueue->reserve( newCap, maxMsgSize );
-
-		if (m_bodyRequests.size() < nMsgs ) {
-			m_bodyRequests.resize( nMsgs ); // need only exactly nMsgs because each entry
-			m_edgeRecv.resize( nMsgs ); // matches exactly with one lpf_put or lpf_get on the
-										// the destination.
-		}
-		m_edgeSend.reserve( nMsgs );
-		m_edgeBuffer.reserve( m_smallMsgSize * nMsgs );
-		m_bodySends.reserve( 2* nMsgs ); // one factor two is required because
-		m_bodyRecvs.reserve( 2* nMsgs ); // messages can get fragmented
-#ifdef LPF_CORE_MPI_USES_mpimsg
-		m_comm.reserveMsgs( 6* nMsgs ); //another factor three stems from sending edges separately .
-#endif
-#ifdef LPF_CORE_MPI_USES_ibverbs
-		m_ibverbs.resizeMesgq( 6*nMsgs);
-#endif
+		m_ibverbs.resizeMesgq( nMsgs);
 
 		m_maxNMsgs = maxNMsgs;
 	}
@@ -270,17 +221,12 @@ void MessageQueue :: removeReg( memslot_t slot )
 void MessageQueue :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
 		memslot_t dstSlot, size_t dstOffset, size_t size )
 {
-
-#ifdef LPF_CORE_MPI_USES_ibverbs
 			m_ibverbs.get(srcPid, 
 				m_memreg.getVerbID( srcSlot),
 				srcOffset,
 				m_memreg.getVerbID( dstSlot),
 				dstOffset,
 				size );
-#else
-//TODO: ERR
-#endif
 
 }
 
@@ -289,42 +235,30 @@ void MessageQueue :: get( pid_t srcPid, memslot_t srcSlot, size_t srcOffset,
 void MessageQueue :: put( memslot_t srcSlot, size_t srcOffset,
 		pid_t dstPid, memslot_t dstSlot, size_t dstOffset, size_t size )
 {
-
-#ifdef LPF_CORE_MPI_USES_ibverbs
 			m_ibverbs.put( m_memreg.getVerbID( srcSlot),
 				srcOffset,
 				dstPid,
 				m_memreg.getVerbID( dstSlot),
 				dstOffset,
 				size );
-#else
-	//TODO: ERR
-#endif
 
 }
 
 void MessageQueue :: atomic_fetch_and_add( memslot_t srcSlot, size_t srcOffset,
             pid_t dstPid, memslot_t dstSlot, size_t dstOffset, uint64_t value )
 {
-
-#ifdef LPF_CORE_MPI_USES_ibverbs
 			m_ibverbs.atomic_fetch_and_add( m_memreg.getVerbID( srcSlot),
 				srcOffset,
 				dstPid,
 				m_memreg.getVerbID( dstSlot),
 				dstOffset,
 				value );
-#else
-	//TODO: ERR
-#endif
 
 }
 
 void MessageQueue :: atomic_cmp_and_swp( memslot_t srcSlot, size_t srcOffset,
             pid_t dstPid, memslot_t dstSlot, size_t dstOffset, uint64_t cmp, uint64_t swp )
 {
-
-#ifdef LPF_CORE_MPI_USES_ibverbs
 			m_ibverbs.atomic_cmp_and_swp( m_memreg.getVerbID( srcSlot),
 				srcOffset,
 				dstPid,
@@ -332,10 +266,6 @@ void MessageQueue :: atomic_cmp_and_swp( memslot_t srcSlot, size_t srcOffset,
 				dstOffset,
 				cmp,
 				swp );
-#else
-	//TODO: ERR
-
-#endif
 }
 
 int MessageQueue :: sync( bool abort, lpf_sync_attr_t attr )
@@ -347,9 +277,7 @@ int MessageQueue :: sync( bool abort, lpf_sync_attr_t attr )
 	m_vote[1] = m_resized?1:0;
 
 
-#ifdef LPF_CORE_MPI_USES_ibverbs
 	m_ibverbs.sync( m_vote.data(), attr);
-#endif
 	if (m_vote[0] != 0 ) {
 		LOG(2, "Abort detected by sparse all-to-all");
 		return m_vote[0];

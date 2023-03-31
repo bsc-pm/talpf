@@ -348,7 +348,7 @@ void IBVerbs :: reconnectQPs()
 			
 			struct ibv_recv_wr rr;	std::memset(&rr, 0, sizeof(rr));
 			struct ibv_sge	   sge; std::memset(&sge, 0, sizeof(sge));
-			struct ibv_recv_wr *bad_wr = NULL;
+			//struct ibv_recv_wr *bad_wr = NULL;
 			sge.addr = reinterpret_cast<uintptr_t>(m_dummyBuffer.data());
 			sge.length = m_dummyBuffer.size();
 			sge.lkey = m_dummyMemReg->lkey;
