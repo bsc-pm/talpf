@@ -26,6 +26,7 @@
 #include <nanos6.h>
 #include <nanos6/library-mode.h>
 
+#define MAX_POLLING 128
 namespace lpf { namespace mpi {
 
 
@@ -434,41 +435,45 @@ void IBVerbs :: reconnectQPs()
 void IBVerbs :: doLocalProgress(){
 	int n = m_numMsgs;
 	int error = 0;
-	struct ibv_wc wcs[64];
-
-
-	LOG(5, "Polling for " << n << " messages" );
-	int pollResult = ibv_poll_cq(m_cqLocal.get(), std::min<size_t>(64,n), wcs);
-	if (pollResult > 0) {
-		LOG(4, "Received " << pollResult << " acknowledgements");
-		atomic_fetch_sub(&m_numMsgs, pollResult);
+	struct ibv_wc wcs[8];
 	
-		for (int i = 0; i < pollResult ; ++i) {
-			if (wcs[i].status != IBV_WC_SUCCESS) 
-			{
-				 LOG( 2, "Got bad completion status from IB message."
-					" status = 0x" << std::hex << wcs[i].status
-					<< ", vendor syndrome = 0x" << std::hex
-					<< wcs[i].vendor_err );
-				error = 1;
-			}
-			else {
-				nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
+
+	int pollResult, totalResults = 0;
+	LOG(5, "Polling for " << n << " messages" );
+	do {
+		pollResult = ibv_poll_cq(m_cqLocal.get(), 8, wcs);
+		if (pollResult > 0) {
+			totalResults += pollResult;
+			LOG(4, "Received " << pollResult << " acknowledgements");
+			atomic_fetch_sub(&m_numMsgs, pollResult);
+		
+			for (int i = 0; i < pollResult ; ++i) {
+				if (wcs[i].status != IBV_WC_SUCCESS) 
+				{
+					 LOG( 2, "Got bad completion status from IB message."
+						" status = 0x" << std::hex << wcs[i].status
+						<< ", vendor syndrome = 0x" << std::hex
+						<< wcs[i].vendor_err );
+					error = 1;
+				}
+				else {
+					nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
+				}
 			}
 		}
-	}
-	else if (pollResult < 0) 
-	{
-		LOG( 1, "Failed to poll IB completion queue" );
-		throw Exception("Poll CQ failure");
-	}
-	if (error) {
-		throw Exception("Error occurred during polling");
-	}
+		else if (pollResult < 0) 
+		{
+			LOG( 1, "Failed to poll IB completion queue" );
+			throw Exception("Poll CQ failure");
+		}
+		if (error) {
+			throw Exception("Error occurred during polling");
+		}
+	} while (pollResult == 8 && totalResults < MAX_POLLING);
 }
 
 void IBVerbs :: doRemoteProgress(){
-	struct ibv_wc wcs[64];
+	struct ibv_wc wcs[8];
 
 	struct ibv_recv_wr wr;
 	struct ibv_sge sg;
@@ -482,12 +487,16 @@ void IBVerbs :: doRemoteProgress(){
 	wr.num_sge = 0;
 	wr.wr_id = 0;
 
+	int pollResult, totalResults = 0;
 
-	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
-	for(int i = 0; i < pollResult; i++){
-		m_recvCounts[wcs[i].imm_data%1024]++;
-		ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
-	}
+	do {
+		pollResult = ibv_poll_cq(m_cqRemote.get(), 8, wcs);
+		for(int i = 0; i < pollResult; i++){
+			m_recvCounts[wcs[i].imm_data%1024]++;
+			ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
+		}
+		if(pollResult > 0) totalResults += pollResult;
+	} while (pollResult == 8 && totalResults < 128);
 }
 
 void IBVerbs :: processSyncRequest(){
@@ -759,7 +768,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 		atomic_fetch_sub(&m_numMsgs, 1);
 		atomic_fetch_sub(&m_numMsgsSync[dstPid], 1);
 		
-		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
+		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) << " " << err );
 		throw Exception("Error while posting RDMA requests");
 	}
 }
