@@ -380,9 +380,6 @@ function( target_link_exe_with_core target )
     )
 endfunction()
 
-# Apps
-add_subdirectory(src/utils)
-
 # Tests
 if (LPF_ENABLE_TESTS)
     add_subdirectory(tests)

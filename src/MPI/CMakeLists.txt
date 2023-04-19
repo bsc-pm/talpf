@@ -33,15 +33,6 @@ if (MPI_FOUND)
       add_definitions("-DMPI_HAS_IBARRIER=1")
     endif()
 
-    add_executable(        lpf_proxy_dummy proxydummy.c)
-    target_link_libraries( lpf_proxy_dummy ${MPI_C_LIBRARIES})
-    set_target_properties( lpf_proxy_dummy PROPERTIES LINK_FLAGS
-            "${MPI_C_LINK_FLAGS}" )
-    target_include_directories( lpf_proxy_dummy PRIVATE ${MPI_C_INCLUDE_PATH})
-    target_compile_flags(lpf_proxy_dummy PRIVATE  ${MPI_C_COMPILE_FLAGS})
-    install( TARGETS lpf_proxy_dummy RUNTIME DESTINATION ${INSTALL_HELPERS} )
-        
-
     set(LPF_IMPL_CONFIG ${LPFLIB_CONFIG_NAME})
 
 
@@ -67,9 +58,7 @@ if (MPI_FOUND)
                 ../common/machineparams.cpp
                 core.cpp
                 dynamichook.cpp
-                spall2all.c
                 messagesort.cpp
-                spall2all.cpp
 		init.cpp
                 ${ibverbs_sources}
             )
@@ -202,20 +191,6 @@ if (MPI_FOUND)
         add_gtest_mpi( ibverbs_test "1;2;5;10" ibverbs.t.cpp ibverbs.cpp
                     $<TARGET_OBJECTS:${comlib}> mpilib.cpp)
         target_link_libraries( ibverbs_test ${LIB_IBVERBS})
-    endif()
-
-    add_gtest_mpi( spall2all_test "1;2;5;10" spall2all.t.cpp spall2all.c
-            spall2all.cpp mpilib.cpp
-            $<TARGET_OBJECTS:${comlib}> 
-            )
-
-    add_gtest_mpi( dall2all_test "1;2;5;10" dall2all.t.cpp
-            mpilib.cpp $<TARGET_OBJECTS:${comlib}> 
-            )
-
-    if (MPI_IBARRIER)
-       add_gtest_mpi( hall2all_test "1;2;5;10" hall2all.t.cpp
-            mpilib.cpp $<TARGET_OBJECTS:${comlib}> )
     endif()
 
     add_gtest( messagesort_test messagesort.t.cpp messagesort.cpp

@@ -22,7 +22,6 @@
 #include <iosfwd>
 #include "memorytable.hpp"
 #include "types.hpp"
-#include "vall2all.hpp"
 #include "messagesort.hpp"
 #include "mpilib.hpp"
 #include "linkage.hpp"
