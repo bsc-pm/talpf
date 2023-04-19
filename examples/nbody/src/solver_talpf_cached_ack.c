@@ -16,10 +16,14 @@ static void calculate_forces_block(forces_block_t *forces, const particles_block
 static void update_particles_block(particles_block_t *particles, forces_block_t *forces, const float time_interval);
 static void exchange_particles_block(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, int block_id);
 
+int ack;
+
 void nbody_solve(nbody_t *nbody, const int num_blocks, const int timesteps, const float time_interval)
 {
 	assert(nbody != NULL);
 	assert(timesteps > 0);
+
+	int src = MOD(rank - 1, nranks);
 	
 	particles_block_t *local = nbody->local;
 	lpf_memslot_t *l = &LOCAL;
@@ -39,14 +43,20 @@ void nbody_solve(nbody_t *nbody, const int num_blocks, const int timesteps, cons
 			calculate_forces(forces, local, sendbuf, num_blocks);
 			if (r < nranks - 1) {
 				exchange_particles(sendbuf, sendmem, recvbuf, recvmem, num_blocks);
+	
+				#pragma oss task inout(ack)\
+					label("ack") 
+				talpf_put(lpf, *sendmem, 0, src, *recvmem, 0, 0, LPF_MSG_DEFAULT);
 				#pragma oss task inout({recvbuf[I], I=0;num_blocks})\
 					inout({forces[I], I=0;num_blocks}) \
+					inout(ack)\
 					label("sync") 
 				talpf_sync(lpf, LPF_SYNC_CACHED);// | LPF_SYNC_BARRIER);
 			}
 			else {
 				#pragma oss task inout({recvbuf[I], I=0;num_blocks})\
 					inout({forces[I], I=0;num_blocks}) \
+					inout(ack)\
 					label("sync")
 				talpf_sync(lpf, LPF_SYNC_MSG(0) | LPF_SYNC_BARRIER);
 			}
@@ -189,11 +199,11 @@ void update_particles_block(particles_block_t *particles, forces_block_t *forces
 void exchange_particles_block(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, int block_id)
 {
 	int dst = MOD(rank + 1, nranks);
-	int src = MOD(rank - 1, nranks);
+//	int src = MOD(rank - 1, nranks);
 	int size = sizeof(particles_block_t);
 	
 	talpf_put(lpf, *sendmem, size*block_id, dst, *recvmem, size*block_id, size, LPF_MSG_DEFAULT);
-	talpf_put(lpf, *sendmem, 0, src, *recvmem, 0, 0, LPF_MSG_DEFAULT);
+	//talpf_put(lpf, *sendmem, 0, src, *recvmem, 0, 0, LPF_MSG_DEFAULT);
 }
 
 void nbody_stats(const nbody_t *nbody, const nbody_conf_t *conf, double time)
