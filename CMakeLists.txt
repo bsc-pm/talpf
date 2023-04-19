@@ -390,7 +390,6 @@ endif (LPF_ENABLE_TESTS)
 
 # Documentation
 add_subdirectory(doc)
-add_subdirectory(examples)
 
 
 # Generation of frontends to be installed
