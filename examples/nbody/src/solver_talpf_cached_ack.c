@@ -11,10 +11,10 @@
 
 static void calculate_forces(forces_block_t *forces, const particles_block_t *block1, const particles_block_t *block2, const int num_blocks);
 static void update_particles(particles_block_t *particles, forces_block_t *forces, const int num_blocks, const float time_interval);
-static void exchange_particles(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, const int num_blocks, forces_block_t *forces);
+static void exchange_particles(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, const int num_blocks);
 static void calculate_forces_block(forces_block_t *forces, const particles_block_t *block1, const particles_block_t *block2);
 static void update_particles_block(particles_block_t *particles, forces_block_t *forces, const float time_interval);
-static void exchange_particles_block(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, int block_id, forces_block_t *forces);
+static void exchange_particles_block(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, int block_id);
 
 void nbody_solve(nbody_t *nbody, const int num_blocks, const int timesteps, const float time_interval)
 {
@@ -38,7 +38,7 @@ void nbody_solve(nbody_t *nbody, const int num_blocks, const int timesteps, cons
 		for (int r = 0; r < nranks; r++) {
 			calculate_forces(forces, local, sendbuf, num_blocks);
 			if (r < nranks - 1) {
-				exchange_particles(sendbuf, sendmem, recvbuf, recvmem, num_blocks, forces);
+				exchange_particles(sendbuf, sendmem, recvbuf, recvmem, num_blocks);
 				#pragma oss task inout({recvbuf[I], I=0;num_blocks})\
 					inout({forces[I], I=0;num_blocks}) \
 					label("sync") 
@@ -104,10 +104,10 @@ void update_particles(particles_block_t *particles, forces_block_t *forces, cons
 	}
 }
 
-void exchange_particles(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, const int num_blocks, forces_block_t *forces)
+void exchange_particles(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, const int num_blocks)
 {
 	for (int i = 0; i < num_blocks; i++) {
-		exchange_particles_block(sendbuf+i, sendmem, recvbuf+i, recvmem, i, forces+i);
+		exchange_particles_block(sendbuf+i, sendmem, recvbuf+i, recvmem, i);
 	}
 }
 
@@ -185,8 +185,8 @@ void update_particles_block(particles_block_t *particles, forces_block_t *forces
 	
 	memset(forces, 0, sizeof(forces_block_t));
 }
-#pragma oss task in(*sendbuf) out(*recvbuf) inout(*forces) label(exchange_particles_block)
-void exchange_particles_block(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, int block_id, forces_block_t *forces)
+#pragma oss task in(*sendbuf) out(*recvbuf) label(exchange_particles_block)
+void exchange_particles_block(const particles_block_t *sendbuf, const lpf_memslot_t *sendmem, particles_block_t *recvbuf, lpf_memslot_t *recvmem, int block_id)
 {
 	int dst = MOD(rank + 1, nranks);
 	int src = MOD(rank - 1, nranks);
