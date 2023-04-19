@@ -66,38 +66,18 @@ public:
 	int sync( bool abort, lpf_sync_attr_t attr );
 
 private:
-	enum Msgs { BufPut , 
-		BufGet, BufGetReply,
-		HpPut, HpGet , HpBodyReply ,
-		HpEdges, HpEdgesReply };
 
-	enum Props { MsgId, Tag,
-		SrcPid, DstPid,
-		SrcOffset, DstOffset, BufOffset,
-		SrcSlot, DstSlot, Size,
-		RoundedDstOffset, RoundedSize, 
-		Payload, Head, Tail};
-
-	static size_t largestHeader( lpf_pid_t nprocs, size_t memRange, size_t maxRegs, size_t maxMsgs);
-
-
-	typedef mpi::VirtualAllToAll Queue;
-	static Queue * newQueue( pid_t pid, pid_t nprocs );
 
 	const pid_t m_pid, m_nprocs;
 	const size_t m_memRange;
-	const size_t m_tinyMsgSize;
-	const size_t m_smallMsgSize;
 	std::vector< int > m_vote;
 	size_t m_maxNMsgs;
 	size_t m_nextMemRegSize;
 	bool m_resized;
 	MessageSort m_msgsort;
-	memslot_t m_edgeBufferSlot;
 	mpi::Comm m_comm;
 	mpi::IBVerbs m_ibverbs;
 	MemoryTable m_memreg;
-	std::vector< char > m_tinyMsgBuf;
 };
 
 
