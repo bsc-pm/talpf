@@ -22,7 +22,6 @@
 #include <iosfwd>
 #include "memorytable.hpp"
 #include "types.hpp"
-#include "vall2all.hpp"
 #include "messagesort.hpp"
 #include "mpilib.hpp"
 #include "linkage.hpp"
@@ -33,9 +32,7 @@
 #include <tr1/memory>
 #endif
 
-#ifdef LPF_CORE_MPI_USES_ibverbs
 #include "ibverbs.hpp"
-#endif
 
 namespace lpf {
 
@@ -68,80 +65,18 @@ public:
 	int sync( bool abort, lpf_sync_attr_t attr );
 
 private:
-	enum Msgs { BufPut , 
-		BufGet, BufGetReply,
-		HpPut, HpGet , HpBodyReply ,
-		HpEdges, HpEdgesReply };
 
-	enum Props { MsgId, Tag,
-		SrcPid, DstPid,
-		SrcOffset, DstOffset, BufOffset,
-		SrcSlot, DstSlot, Size,
-		RoundedDstOffset, RoundedSize, 
-		Payload, Head, Tail};
-
-	struct Edge {
-		MessageSort::MsgId id;
-#ifdef LPF_CORE_MPI_USES_mpimsg
-		unsigned tag;
-#endif
-		bool canWriteHead, canWriteTail;
-		pid_t srcPid, dstPid;
-		memslot_t srcSlot, dstSlot;
-		size_t srcOffset;
-		size_t dstOffset;
-		size_t size;
-		size_t roundedDstOffset, roundedSize;
-		size_t bufOffset;
-	};
-
-	struct Body {
-		MessageSort::MsgId id;
-#ifdef LPF_CORE_MPI_USES_mpimsg
-		unsigned tag;
-#endif
-		pid_t srcPid, dstPid;
-		memslot_t srcSlot, dstSlot;
-		size_t	  srcOffset, dstOffset;
-		size_t	  size;
-		size_t roundedDstOffset, roundedSize;
-	};
-
-	static size_t largestHeader( lpf_pid_t nprocs, size_t memRange, size_t maxRegs, size_t maxMsgs);
-
-
-	typedef mpi::VirtualAllToAll Queue;
-	static Queue * newQueue( pid_t pid, pid_t nprocs );
 
 	const pid_t m_pid, m_nprocs;
 	const size_t m_memRange;
-	const size_t m_tinyMsgSize;
-	const size_t m_smallMsgSize;
 	std::vector< int > m_vote;
-#if __cplusplus >= 201103L
-	std::shared_ptr<Queue> m_firstQueue, m_secondQueue;
-#else
-	std::tr1::shared_ptr<Queue> m_firstQueue, m_secondQueue;
-#endif
 	size_t m_maxNMsgs;
 	size_t m_nextMemRegSize;
 	bool m_resized;
 	MessageSort m_msgsort;
-	std::vector< Body > m_bodyRequests;
-	std::vector< Edge > m_edgeRecv;
-	std::vector< Edge > m_edgeSend;
-	std::vector< char > m_edgeBuffer;
-#if defined LPF_CORE_MPI_USES_mpirma || defined LPF_CORE_MPI_USES_ibverbs
-	memslot_t m_edgeBufferSlot;
-#endif
-	std::vector< Body > m_bodySends;
-	std::vector< Body > m_bodyRecvs;
 	mpi::Comm m_comm;
-#ifdef LPF_CORE_MPI_USES_ibverbs
 	mpi::IBVerbs m_ibverbs;
-#endif
 	MemoryTable m_memreg;
-	std::vector< char > m_tinyMsgBuf;
 };
 
 

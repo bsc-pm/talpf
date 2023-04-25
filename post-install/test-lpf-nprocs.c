@@ -54,7 +54,7 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
         mem[i] = pid + 'A';
 
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
     lpf_memslot_t params_slot = LPF_INVALID_MEMSLOT;
     lpf_register_global( lpf, &params, sizeof(params), &params_slot );
@@ -62,23 +62,23 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     lpf_memslot_t mem_slot = LPF_INVALID_MEMSLOT;
     lpf_register_global( lpf, mem, nprocs, &mem_slot );
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 
     if (pid != 0) 
 #pragma oss task
-        lpf_get( lpf, 0, params_slot, 0, params_slot, 0, sizeof(params), LPF_MSG_DEFAULT );
+        talpf_get( lpf, 0, params_slot, 0, params_slot, 0, sizeof(params), LPF_MSG_DEFAULT );
 #pragma oss taskwait
 
     for (i = 0; i < nprocs; ++i) {
         if ( i != pid )
 #pragma oss task
-            lpf_put( lpf, mem_slot, pid, i, mem_slot, pid, sizeof(mem[0]), LPF_MSG_DEFAULT );
+            talpf_put( lpf, mem_slot, pid, i, mem_slot, pid, sizeof(mem[0]), LPF_MSG_DEFAULT );
     }
 #pragma oss taskwait
 
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 
 
@@ -93,18 +93,18 @@ void spmd( lpf_t lpf, lpf_pid_t pid, lpf_pid_t nprocs, lpf_args_t args )
     if (!params.error)
         params.actual_nprocs = nprocs;
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 
     if (params.error && pid != 0){
 #pragma oss task
-        lpf_put( lpf, params_slot, 0, 0, params_slot, 0, sizeof(params), LPF_MSG_DEFAULT);
+        talpf_put( lpf, params_slot, 0, 0, params_slot, 0, sizeof(params), LPF_MSG_DEFAULT);
 #pragma oss taskwait
     }
 
 
 #pragma oss task
-    lpf_sync( lpf, LPF_SYNC_DEFAULT );
+    talpf_sync( lpf, LPF_SYNC_DEFAULT );
 #pragma oss taskwait
 
 //    if (pid == 0) {

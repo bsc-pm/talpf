@@ -380,9 +380,6 @@ function( target_link_exe_with_core target )
     )
 endfunction()
 
-# Apps
-add_subdirectory(src/utils)
-
 # Tests
 if (LPF_ENABLE_TESTS)
     add_subdirectory(tests)
@@ -390,7 +387,6 @@ endif (LPF_ENABLE_TESTS)
 
 # Documentation
 add_subdirectory(doc)
-add_subdirectory(examples)
 
 
 # Generation of frontends to be installed

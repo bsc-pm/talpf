@@ -18,8 +18,6 @@
 add_subdirectory(imp)
 add_subdirectory(common)
 add_subdirectory(MPI)
-add_subdirectory(core-libraries)
-add_subdirectory(debug)
 
 set(lpf_cflags "${lpf_cflags}" PARENT_SCOPE)
 set(lpf_lib_link_flags "${lpf_lib_link_flags}" PARENT_SCOPE)

@@ -1,0 +1,3 @@
+rank       hostname             offset_median        offset_mean          offset_std          
+0          hua04                0                    0.000000             0.000000            
+1          hua06                1857605638735358     1857605638735204.750000 781.650622          

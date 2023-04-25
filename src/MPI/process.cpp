@@ -248,7 +248,7 @@ err_t Process :: hook( const mpi::Comm & machine, Process & subprocess,
 /*S=2*/ machine.barrier();
         try
         {
-    	    ovni_proc_set_rank( machine.pid(), machine.nprocs());
+    	    //ovni_proc_set_rank( machine.pid(), machine.nprocs());
             (*spmd)( &runtime, machine.pid(), machine.nprocs(), args);
 
             if ( runtime.isAborted() == 0 )

@@ -1,0 +1,135 @@
+{
+    "version": 1,
+    "model_version": "O1 V1 T1 M1 D1 K1 61",
+    "app_id": 1,
+    "cpus": [
+        {
+            "index": 0,
+            "phyid": 64
+        },
+        {
+            "index": 1,
+            "phyid": 65
+        },
+        {
+            "index": 2,
+            "phyid": 66
+        },
+        {
+            "index": 3,
+            "phyid": 67
+        },
+        {
+            "index": 4,
+            "phyid": 68
+        },
+        {
+            "index": 5,
+            "phyid": 69
+        },
+        {
+            "index": 6,
+            "phyid": 70
+        },
+        {
+            "index": 7,
+            "phyid": 71
+        },
+        {
+            "index": 8,
+            "phyid": 72
+        },
+        {
+            "index": 9,
+            "phyid": 73
+        },
+        {
+            "index": 10,
+            "phyid": 74
+        },
+        {
+            "index": 11,
+            "phyid": 75
+        },
+        {
+            "index": 12,
+            "phyid": 76
+        },
+        {
+            "index": 13,
+            "phyid": 77
+        },
+        {
+            "index": 14,
+            "phyid": 78
+        },
+        {
+            "index": 15,
+            "phyid": 79
+        },
+        {
+            "index": 16,
+            "phyid": 80
+        },
+        {
+            "index": 17,
+            "phyid": 81
+        },
+        {
+            "index": 18,
+            "phyid": 82
+        },
+        {
+            "index": 19,
+            "phyid": 83
+        },
+        {
+            "index": 20,
+            "phyid": 84
+        },
+        {
+            "index": 21,
+            "phyid": 85
+        },
+        {
+            "index": 22,
+            "phyid": 86
+        },
+        {
+            "index": 23,
+            "phyid": 87
+        },
+        {
+            "index": 24,
+            "phyid": 88
+        },
+        {
+            "index": 25,
+            "phyid": 89
+        },
+        {
+            "index": 26,
+            "phyid": 90
+        },
+        {
+            "index": 27,
+            "phyid": 91
+        },
+        {
+            "index": 28,
+            "phyid": 92
+        },
+        {
+            "index": 29,
+            "phyid": 93
+        },
+        {
+            "index": 30,
+            "phyid": 94
+        },
+        {
+            "index": 31,
+            "phyid": 95
+        }
+    ]
+}

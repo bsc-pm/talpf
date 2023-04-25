@@ -26,6 +26,8 @@
 #include <nanos6.h>
 #include <nanos6/library-mode.h>
 
+#define MAX_POLLING 128
+#define POLL_BATCH 8
 namespace lpf { namespace mpi {
 
 
@@ -209,7 +211,6 @@ IBVerbs :: IBVerbs( Communication & comm )
 				<< m_nprocs << " entries" );
 		throw Exception("Could not allocate completion queue");
 	}
-	//fprintf(stderr, "Can resize? %s\n", ((m_deviceAttr.device_cap_flags & IBV_DEVICE_SRQ_RESIZE) == 0)? "No":"Yes");	
 	struct ibv_srq_init_attr srq_init_attr;
 	srq_init_attr.srq_context = NULL;
 	srq_init_attr.attr.max_wr =  m_deviceAttr.max_srq_wr;//2 * m_cqSize * m_nprocs;
@@ -349,7 +350,7 @@ void IBVerbs :: reconnectQPs()
 			
 			struct ibv_recv_wr rr;	std::memset(&rr, 0, sizeof(rr));
 			struct ibv_sge	   sge; std::memset(&sge, 0, sizeof(sge));
-			struct ibv_recv_wr *bad_wr = NULL;
+			//struct ibv_recv_wr *bad_wr = NULL;
 			sge.addr = reinterpret_cast<uintptr_t>(m_dummyBuffer.data());
 			sge.length = m_dummyBuffer.size();
 			sge.lkey = m_dummyMemReg->lkey;
@@ -435,42 +436,45 @@ void IBVerbs :: reconnectQPs()
 void IBVerbs :: doLocalProgress(){
 	int n = m_numMsgs;
 	int error = 0;
-	struct ibv_wc wcs[64];
-
-
-	LOG(5, "Polling for " << n << " messages" );
-	int pollResult = ibv_poll_cq(m_cqLocal.get(), std::min<size_t>(64,n), wcs);
-	if (pollResult > 0) {
-		LOG(4, "Received " << pollResult << " acknowledgements");
-		atomic_fetch_sub(&m_numMsgs, pollResult);
+	struct ibv_wc wcs[POLL_BATCH];
 	
-		for (int i = 0; i < pollResult ; ++i) {
-			if (wcs[i].status != IBV_WC_SUCCESS) 
-			{
-				//fprintf(stderr, "Got bad completion status from IB message.  status = 0x%x , vendor syndrome = 0x%x\n", wcs[i].status, wcs[i].vendor_err);
-				 LOG( 2, "Got bad completion status from IB message."
-					" status = 0x" << std::hex << wcs[i].status
-					<< ", vendor syndrome = 0x" << std::hex
-					<< wcs[i].vendor_err );
-				error = 1;
-			}
-			else {
-				nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
+
+	int pollResult, totalResults = 0;
+	LOG(5, "Polling for " << n << " messages" );
+	do {
+		pollResult = ibv_poll_cq(m_cqLocal.get(), POLL_BATCH, wcs);
+		if (pollResult > 0) {
+			totalResults += pollResult;
+			LOG(4, "Received " << pollResult << " acknowledgements");
+			atomic_fetch_sub(&m_numMsgs, pollResult);
+		
+			for (int i = 0; i < pollResult ; ++i) {
+				if (wcs[i].status != IBV_WC_SUCCESS) 
+				{
+					 LOG( 2, "Got bad completion status from IB message."
+						" status = 0x" << std::hex << wcs[i].status
+						<< ", vendor syndrome = 0x" << std::hex
+						<< wcs[i].vendor_err );
+					error = 1;
+				}
+				else {
+					nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
+				}
 			}
 		}
-	}
-	else if (pollResult < 0) 
-	{
-		LOG( 1, "Failed to poll IB completion queue" );
-		throw Exception("Poll CQ failure");
-	}
-	if (error) {
-		throw Exception("Error occurred during polling");
-	}
+		else if (pollResult < 0) 
+		{
+			LOG( 1, "Failed to poll IB completion queue" );
+			throw Exception("Poll CQ failure");
+		}
+		if (error) {
+			throw Exception("Error occurred during polling");
+		}
+	} while (pollResult == POLL_BATCH && totalResults < MAX_POLLING);
 }
 
 void IBVerbs :: doRemoteProgress(){
-	struct ibv_wc wcs[64];
+	struct ibv_wc wcs[POLL_BATCH];
 
 	struct ibv_recv_wr wr;
 	struct ibv_sge sg;
@@ -484,12 +488,16 @@ void IBVerbs :: doRemoteProgress(){
 	wr.num_sge = 0;
 	wr.wr_id = 0;
 
+	int pollResult, totalResults = 0;
 
-	int pollResult = ibv_poll_cq(m_cqRemote.get(), std::min<size_t>(64, /*syncRequest.remoteMsgs + */m_nprocs), wcs);
-	for(int i = 0; i < pollResult; i++){
-		m_recvCounts[wcs[i].imm_data%1024]++;
-		int res = ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
-	}
+	do {
+		pollResult = ibv_poll_cq(m_cqRemote.get(), POLL_BATCH, wcs);
+		for(int i = 0; i < pollResult; i++){
+			m_recvCounts[wcs[i].imm_data%1024]++;
+			ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
+		}
+		if(pollResult > 0) totalResults += pollResult;
+	} while (pollResult == POLL_BATCH && totalResults < MAX_POLLING);
 }
 
 void IBVerbs :: processSyncRequest(){
@@ -607,7 +615,7 @@ void IBVerbs :: resizeMesgq( size_t size )
 			wr.num_sge = 0;
 			wr.wr_id = 0;
 			for(int i = m_postCount; i < (int)remote_size; ++i){
-				int res = ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
+				ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
 				m_postCount++;
 			}
 		}	
@@ -706,6 +714,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 
 
 	int numMsgs = size/m_maxMsgSize + (size % m_maxMsgSize > 0); //+1 if last msg size < m_maxMsgSize
+	if(size == 0) numMsgs = 1;
 
 	struct ibv_sge	   sges[numMsgs];
 	struct ibv_send_wr srs[numMsgs];
@@ -760,7 +769,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 		atomic_fetch_sub(&m_numMsgs, 1);
 		atomic_fetch_sub(&m_numMsgsSync[dstPid], 1);
 		
-		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) );
+		LOG(1, "Error while posting RDMA requests: " << std::strerror(err) << " " << err );
 		throw Exception("Error while posting RDMA requests");
 	}
 }
@@ -784,8 +793,8 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	atomic_fetch_add(&m_numMsgsSync[srcPid], 1);
 
 	for(int i = 0; i< numMsgs; i++){
-	sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
-	sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
+		sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
+		sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
 
 		const char * localAddr 
 			= static_cast<const char *>(dst.glob[m_pid].addr) + dstOffset;
@@ -1006,8 +1015,6 @@ void IBVerbs :: sync( int * vote, int attr )
 	int voted[2];
 
 	
-	//if(m_blockRequest != NULL)
-	//
 	if(sync_mode == LPF_SYNC_DEFAULT){
 
 		voted[0] = 0;

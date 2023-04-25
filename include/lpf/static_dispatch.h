@@ -37,9 +37,6 @@
 
 #endif
 
-#undef lpf_get
-#undef lpf_put
-#undef lpf_sync
 #undef lpf_register_local
 #undef lpf_register_global
 #undef lpf_deregister

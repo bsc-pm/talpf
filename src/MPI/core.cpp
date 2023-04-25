@@ -219,7 +219,7 @@ lpf_err_t lpf_deregister(
 }
 
 
-lpf_err_t lpf_put( lpf_t ctx,
+lpf_err_t talpf_put( lpf_t ctx,
 					   lpf_memslot_t src_slot, 
 					   size_t src_offset,
 					   lpf_pid_t dst_pid, 
@@ -238,7 +238,7 @@ lpf_err_t lpf_put( lpf_t ctx,
 }
 
 
-lpf_err_t lpf_get(
+lpf_err_t talpf_get(
 	lpf_t ctx, 
 	lpf_pid_t pid, 
 	lpf_memslot_t src, 
@@ -257,7 +257,7 @@ lpf_err_t lpf_get(
 	return LPF_SUCCESS;
 }
 
-lpf_err_t lpf_atomic_fetch_and_add( 
+lpf_err_t talpf_atomic_fetch_and_add( 
 	lpf_t ctx, 
 	lpf_memslot_t src_slot, 
 	size_t src_offset,
@@ -273,7 +273,7 @@ lpf_err_t lpf_atomic_fetch_and_add(
 	return LPF_SUCCESS;
 }
 
-lpf_err_t lpf_atomic_cmp_and_swp( 
+lpf_err_t talpf_atomic_cmp_and_swp( 
 	lpf_t ctx, 
 	lpf_memslot_t src_slot, 
 	size_t src_offset,
@@ -291,7 +291,7 @@ lpf_err_t lpf_atomic_cmp_and_swp(
 }
 
 
-lpf_err_t lpf_sync( lpf_t ctx, lpf_sync_attr_t attr )
+lpf_err_t talpf_sync( lpf_t ctx, lpf_sync_attr_t attr )
 {
 	return realContext(ctx)->sync(attr);
 }
