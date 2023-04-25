@@ -27,6 +27,7 @@
 #include <nanos6/library-mode.h>
 
 #define MAX_POLLING 128
+#define POLL_BATCH 8
 namespace lpf { namespace mpi {
 
 
@@ -435,13 +436,13 @@ void IBVerbs :: reconnectQPs()
 void IBVerbs :: doLocalProgress(){
 	int n = m_numMsgs;
 	int error = 0;
-	struct ibv_wc wcs[8];
+	struct ibv_wc wcs[POLL_BATCH];
 	
 
 	int pollResult, totalResults = 0;
 	LOG(5, "Polling for " << n << " messages" );
 	do {
-		pollResult = ibv_poll_cq(m_cqLocal.get(), 8, wcs);
+		pollResult = ibv_poll_cq(m_cqLocal.get(), POLL_BATCH, wcs);
 		if (pollResult > 0) {
 			totalResults += pollResult;
 			LOG(4, "Received " << pollResult << " acknowledgements");
@@ -469,11 +470,11 @@ void IBVerbs :: doLocalProgress(){
 		if (error) {
 			throw Exception("Error occurred during polling");
 		}
-	} while (pollResult == 8 && totalResults < MAX_POLLING);
+	} while (pollResult == POLL_BATCH && totalResults < MAX_POLLING);
 }
 
 void IBVerbs :: doRemoteProgress(){
-	struct ibv_wc wcs[8];
+	struct ibv_wc wcs[POLL_BATCH];
 
 	struct ibv_recv_wr wr;
 	struct ibv_sge sg;
@@ -490,13 +491,13 @@ void IBVerbs :: doRemoteProgress(){
 	int pollResult, totalResults = 0;
 
 	do {
-		pollResult = ibv_poll_cq(m_cqRemote.get(), 8, wcs);
+		pollResult = ibv_poll_cq(m_cqRemote.get(), POLL_BATCH, wcs);
 		for(int i = 0; i < pollResult; i++){
 			m_recvCounts[wcs[i].imm_data%1024]++;
 			ibv_post_srq_recv(m_srq.get(), &wr, &bad_wr);
 		}
 		if(pollResult > 0) totalResults += pollResult;
-	} while (pollResult == 8 && totalResults < 128);
+	} while (pollResult == POLL_BATCH && totalResults < MAX_POLLING);
 }
 
 void IBVerbs :: processSyncRequest(){
