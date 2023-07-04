@@ -30,6 +30,26 @@
 /**
  * \mainpage Introduction
  *
+ *
+ * This description only applies to the original LPF library. In TALPF
+ * the communication primitives and the synchronization primitive must
+ * be used inside OmpSs-2 tasks.
+ *
+ * TALPF primitives have the same parameters as the LPF primitives and
+ * the operation itself is the same (e.g. talpf_put puts data of the source
+ * memory region to the destination memory region), but the behavior of the
+ * primitive may change (e.g. TALPF communication primitives start the communication
+ * directly instead of delegating the communication to the synchronization primitive).
+ *
+ * Apart from the modifications to LPF, TALPF introduces two atomic operations,
+ * talpf_atomic_fetch_and_add and talpf_atomic_cmp_and_swp, two new synchronization
+ * modes, LPF_SYNC_MSG(N) and LPF_SYNC_CACHED, and a modifier to add a barrier
+ * for these new synchronization modes, LPF_SYNC_BARRIER.
+ *
+ *
+ *
+ *
+ *
  * When designing a parallel algorithm it is usually assumed that all
  * processing, memory, and network components on a parallel computer are
  * uniform.
