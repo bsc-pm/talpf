@@ -75,8 +75,6 @@ public:
 	void atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t cmp, uint64_t swp);
 
-	// Do the communication and synchronize
-	// 'Reconnect' must be a globally replicated value
 	void sync( int * vote, int attr );
 	void doProgress();
 	void stopProgress();
@@ -160,7 +158,7 @@ private:
 	void * m_blockContext;
 
 
-	SparseSet< pid_t >			 m_activePeers; // 
+	SparseSet< pid_t >			 m_activePeers;  
 	std::vector< pid_t >		 m_peerList;
 
 	std::vector< struct ibv_sge > m_sges; // array of scatter/gather entries

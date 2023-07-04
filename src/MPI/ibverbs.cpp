@@ -28,6 +28,7 @@
 
 #define MAX_POLLING 128
 #define POLL_BATCH 8
+
 namespace lpf { namespace mpi {
 
 
@@ -54,12 +55,12 @@ void pollingTask(void *args){
 	v->doProgress();
 }
 void endPollingTask(void *args){
-//	IBVerbs *v = (IBVerbs *) args;
+	(void) args;
 }
 void IBVerbs :: getEnvPollingFrequency(){
 	const char *s = getenv("TALPF_POLLING_FREQUENCY");
         if(s!=NULL) pollingFrequency = atoi(s);
-        else pollingFrequency = 500;;
+        else pollingFrequency = 500;
 }
 
 
@@ -81,7 +82,6 @@ IBVerbs :: IBVerbs( Communication & comm )
 	, m_stagedQps( m_nprocs )
 	, m_connectedQps( m_nprocs )
 	, m_numMsgs()
-	//, m_numMsgsSync()
 	, m_recvCount(0)
 	, m_stopProgress(0)
 	, m_postCount(0)
@@ -163,7 +163,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 
 	// maximum number of work requests per Queue Pair
 	m_maxSrs = std::min<size_t>( m_deviceAttr.max_qp_wr, // maximum work requests per QP
-								 m_deviceAttr.max_cqe ); // maximum entries per CQ
+			m_deviceAttr.max_cqe ); // maximum entries per CQ
 	
 	LOG(3, "Maximum number of send requests is the minimum of "
 			<< m_deviceAttr.max_qp_wr << " (the maximum of work requests per QP)"
@@ -187,7 +187,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	m_minNrMsgs = sysRam  / m_maxMsgSize;
 	LOG(3, "Minimum number of messages to allocate = "
 			"total system RAM / maximum message size = " 
-			<<	sysRam << " / " << m_maxMsgSize << " = "  << m_minNrMsgs );
+			<<    sysRam << " / " << m_maxMsgSize << " = "  << m_minNrMsgs );
  
 	// store LID
 	m_lid = port_attr.lid;
@@ -213,8 +213,8 @@ IBVerbs :: IBVerbs( Communication & comm )
 	}
 	struct ibv_srq_init_attr srq_init_attr;
 	srq_init_attr.srq_context = NULL;
-	srq_init_attr.attr.max_wr =  m_deviceAttr.max_srq_wr;//2 * m_cqSize * m_nprocs;
-	srq_init_attr.attr.max_sge = m_deviceAttr.max_srq_sge;// 2 *  m_cqSize * m_nprocs;
+	srq_init_attr.attr.max_wr =  m_deviceAttr.max_srq_wr;
+	srq_init_attr.attr.max_sge = m_deviceAttr.max_srq_sge;
 	srq_init_attr.attr.srq_limit = 0;
 	m_srq.reset(ibv_create_srq(m_pd.get(), &srq_init_attr ),
 			ibv_destroy_srq);
@@ -350,7 +350,6 @@ void IBVerbs :: reconnectQPs()
 			
 			struct ibv_recv_wr rr;	std::memset(&rr, 0, sizeof(rr));
 			struct ibv_sge	   sge; std::memset(&sge, 0, sizeof(sge));
-			//struct ibv_recv_wr *bad_wr = NULL;
 			sge.addr = reinterpret_cast<uintptr_t>(m_dummyBuffer.data());
 			sge.length = m_dummyBuffer.size();
 			sge.lkey = m_dummyMemReg->lkey;
@@ -358,11 +357,6 @@ void IBVerbs :: reconnectQPs()
 			rr.wr_id = 0;
 			rr.sg_list = &sge;
 			rr.num_sge = 1;
-
-			//if (ibv_post_recv(m_stagedQps[i].get(), &rr, &bad_wr)) {
-			//	LOG(1, "Cannot post a single receive request to QP " << i );
-			//	throw Exception("Could not post dummy receive request");
-			//}
 
 			// Bring QP to RTR
 			std::memset(&attr, 0, sizeof(attr));
@@ -514,10 +508,10 @@ void IBVerbs :: processSyncRequest(){
 			
 		}
 	}
+
 	// wait for remote completions
-	
 	else if (m_recvCounts[m_sync_counter%1024] >= syncRequest.remoteMsgs){
-		if (m_recvCounts[m_sync_counter%1024] > syncRequest.remoteMsgs) //Print warning
+		if (m_recvCounts[m_sync_counter%1024] > syncRequest.remoteMsgs)
 			LOG(1, "There are more remote completions than the expected");
 
 		m_recvCounts[m_sync_counter%1024] -= syncRequest.remoteMsgs;
@@ -745,12 +739,12 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 		// since reliable connection guarantees keeps packets in order,
 		// we only need a signal from the last message in the queue
 		sr->send_flags = lastMsg ? IBV_SEND_SIGNALED : 0 ;
+		sr->opcode = lastMsg ? IBV_WR_RDMA_WRITE_WITH_IMM : IBV_WR_RDMA_WRITE;
 
 		sr->wr_id = (uint64_t)counter; 
 
 		sr->sg_list = sge;
 		sr->num_sge = 1;
-		sr->opcode = lastMsg ? IBV_WR_RDMA_WRITE_WITH_IMM : IBV_WR_RDMA_WRITE;
 		sr->imm_data = m_sync_counter;
 		sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 		sr->wr.rdma.rkey = dst.glob[dstPid].rkey;
@@ -806,8 +800,6 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 		sge->lkey = dst.mr->lkey;
 
 		sr->next = &srs[i+1];
-		// since reliable connection guarantees keeps packets in order,
-		// we only need a signal from the last message in the queue
 		sr->send_flags = 0;
 
 		sr->wr_id = m_pid; 
@@ -839,10 +831,12 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 
 	sr->wr_id = (uint64_t)(counter); 
 	sr->next = NULL;
+	// since reliable connection guarantees keeps packets in order,
+	// we only need a signal from the last message in the queue
 	sr->send_flags = IBV_SEND_SIGNALED;
+	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no READ_WITH_IMM 
 	sr->sg_list = sge;
 	sr->num_sge = 0;
-	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no READ_WITH_IMM 
 	sr->imm_data = m_sync_counter;
 	sr->wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 	sr->wr.rdma.rkey = src.glob[srcPid].rkey;
@@ -910,10 +904,12 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 
 	sr2.wr_id = (uint64_t)(counter); 
 	sr2.next = NULL;
+	// since reliable connection guarantees keeps packets in order,
+	// we only need a signal from the last message in the queue
 	sr2.send_flags = IBV_SEND_SIGNALED;
+	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no ATOMIC_FETCH_AND_ADD_WITH_IMM 
 	sr2.sg_list = &sge2;
 	sr2.num_sge = 0;
-	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
 	sr2.imm_data = m_sync_counter;
 	sr2.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 	sr2.wr.rdma.rkey = src.glob[dstPid].rkey;
@@ -981,10 +977,12 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 
 	sr2.wr_id = (uint64_t)(counter); 
 	sr2.next = NULL;
+	// since reliable connection guarantees keeps packets in order,
+	// we only need a signal from the last message in the queue
 	sr2.send_flags = IBV_SEND_SIGNALED;
+	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no ATOMIC_CMP_AND_SWP_WITH_IMM 
 	sr2.sg_list = &sge2;
 	sr2.num_sge = 0;
-	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM; 
 	sr2.imm_data = m_sync_counter;
 	sr2.wr.rdma.remote_addr = reinterpret_cast<uintptr_t>( remoteAddr );
 	sr2.wr.rdma.rkey = src.glob[dstPid].rkey;
@@ -1039,9 +1037,9 @@ void IBVerbs :: sync( int * vote, int attr )
 	if(m_numMsgs > 0) {
 		LOG(2, "There are some RMA operations that still didn't finished, \
 			there may be a problem with the dependencies");
-		//assert(m_numMsgs > 0);
+		//assert(m_numMsgs > 0); //Expected behavior
 		// wait for local completion
-		while (m_numMsgs > 0);
+		while (m_numMsgs > 0); //Relaxed behavior
 	}
 
 
@@ -1063,7 +1061,7 @@ void IBVerbs :: sync( int * vote, int attr )
 			m_sync_cached = true;
 			// fall through
 		case LPF_SYNC_DEFAULT:
-			//get num remote completions
+			//exchange num remote completions
 			for(int i = 0; i < m_nprocs; i++){
 				if(i == m_pid) remoteMsgs = m_comm.allreduceSum(numMsgsSync[i]);
 				else m_comm.allreduceSum(numMsgsSync[i]);
