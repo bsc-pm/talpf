@@ -89,7 +89,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	, m_sync_cached_value(0)
 	, m_sync_counter(0)
 	, m_blockRequest(NULL)
-	, m_blockContext(NULL)
+	, m_blockTask(NULL)
 	, m_activePeers(0, m_nprocs)
 	, m_peerList()
 	, m_memreg()
@@ -225,7 +225,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 
 	syncRequest.isActive = false;
 	syncRequest.withBarrier = false;
-	syncRequest.counter = NULL;
+	syncRequest.task = NULL;
 	syncRequest.secondPhase = false;
 	m_comm.getRequest(&syncRequest.barrierRequest);;
 
@@ -451,7 +451,7 @@ void IBVerbs :: doLocalProgress(){
 					error = 1;
 				}
 				else {
-					alpi_task_events_decrease((alpi_task *)wcs[i].wr_id, 1);
+					alpi_task_events_decrease((struct alpi_task *)wcs[i].wr_id, 1);
 				}
 			}
 		}
@@ -498,8 +498,8 @@ void IBVerbs :: processSyncRequest(){
 	if(syncRequest.withBarrier && syncRequest.secondPhase) {
 		m_comm.test(syncRequest.barrierRequest, &flag);
 		if(flag == 1){
-			void *counter = syncRequest.counter;
-			syncRequest.counter = NULL;
+			void *counter = syncRequest.task;
+			syncRequest.task = NULL;
 			syncRequest.secondPhase = false;
 			syncRequest.isActive = false;
 			m_sync_counter++;
@@ -521,11 +521,11 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.secondPhase = true;
 		}
 		else {
-			void *counter = syncRequest.counter;
-			syncRequest.counter = NULL;
+			void *task = syncRequest.task;
+			syncRequest.task = NULL;
 			syncRequest.isActive = false;
 			m_sync_counter++;
-			alpi_task_events_decrease((struct alpi_task *)counter, 1);
+			alpi_task_events_decrease((struct alpi_task *)task, 1);
 		}
 	}
 }
@@ -536,9 +536,9 @@ void IBVerbs :: processBlock(){
 	if(flag == 1){
 		free(m_blockRequest);
 		m_blockRequest = NULL;
-		void *context = m_blockContext;
-		m_blockContext = NULL;
-		alpi_task_unblock((struct alpi_task *) context);
+		void *task = m_blockTask;
+		m_blockTask = NULL;
+		alpi_task_unblock((struct alpi_task *) task);
 	}
 }
 
@@ -547,7 +547,7 @@ void IBVerbs :: doProgress(){
 	while(!m_stopProgress){
 		doLocalProgress();
 		doRemoteProgress();
-		if(m_blockContext != NULL)
+		if(m_blockTask != NULL)
 			processBlock();
 		if(syncRequest.isActive)
 			processSyncRequest();
@@ -1024,7 +1024,7 @@ void IBVerbs :: sync( int * vote, int attr )
 		m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
 		struct alpi_task *task;
 		alpi_task_self(&task);
-		m_blockContext = (void *)task;
+		m_blockTask = (void *)task;
 		alpi_task_block(task);
 
 		if (voted[0] != 0 ) {
@@ -1090,7 +1090,7 @@ void IBVerbs :: sync( int * vote, int attr )
 	struct alpi_task *task;
 	alpi_task_self(&task);
 	alpi_task_events_increase(task, 1);
-	syncRequest.counter = (void *)task;
+	syncRequest.task = (void *)task;
 	
 	syncRequest.isActive = true;
 
