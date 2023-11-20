@@ -23,7 +23,6 @@
 #include <stdexcept>
 #include <cstring>
 
-#include <nanos6.h>
 #include <nanos6/alpi.h>
 
 #define MAX_POLLING 128
