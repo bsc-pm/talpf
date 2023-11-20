@@ -230,7 +230,9 @@ IBVerbs :: IBVerbs( Communication & comm )
 	m_comm.getRequest(&syncRequest.barrierRequest);;
 
 	getEnvPollingFrequency();
-	alpi_task_spawn(pollingTask, this, endPollingTask, this, "POLLING_TASK", NULL);
+	int err = alpi_task_spawn(pollingTask, this, endPollingTask, this, "POLLING_TASK", NULL);
+	if(err)
+		LOG(1, "Polling task creation failed: " << alpi_error_string(err));
 
 	LOG(3, "Allocated completion queue with " << m_nprocs << " entries.");
 
@@ -427,6 +429,7 @@ void IBVerbs :: reconnectQPs()
 
 
 void IBVerbs :: doLocalProgress(){
+	int err;
 	int n = m_numMsgs;
 	int error = 0;
 	struct ibv_wc wcs[POLL_BATCH];
@@ -451,7 +454,9 @@ void IBVerbs :: doLocalProgress(){
 					error = 1;
 				}
 				else {
-					alpi_task_events_decrease((struct alpi_task *)wcs[i].wr_id, 1);
+					err = alpi_task_events_decrease((struct alpi_task *)wcs[i].wr_id, 1);
+					if(err)
+						LOG(1, "Local progress counter decrease failed: " << alpi_error_string(err));
 				}
 			}
 		}
@@ -494,6 +499,7 @@ void IBVerbs :: doRemoteProgress(){
 }
 
 void IBVerbs :: processSyncRequest(){
+	int err;
 	int flag;
 	if(syncRequest.withBarrier && syncRequest.secondPhase) {
 		m_comm.test(syncRequest.barrierRequest, &flag);
@@ -503,7 +509,9 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.secondPhase = false;
 			syncRequest.isActive = false;
 			m_sync_counter++;
-			alpi_task_events_decrease((struct alpi_task *)counter, 1);
+			err = alpi_task_events_decrease((struct alpi_task *)counter, 1);
+			if(err)
+				LOG(1, "Syncronization Request counter decrease failed: " << alpi_error_string(err));
 			
 		}
 	}
@@ -525,12 +533,15 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.task = NULL;
 			syncRequest.isActive = false;
 			m_sync_counter++;
-			alpi_task_events_decrease((struct alpi_task *)task, 1);
+			err = alpi_task_events_decrease((struct alpi_task *)task, 1);
+			if(err)
+				LOG(1, "Syncronization Request counter decrease failed: " << alpi_error_string(err));
 		}
 	}
 }
 
 void IBVerbs :: processBlock(){
+	int err;
 	int flag;
 	m_comm.test(m_blockRequest, &flag);
 	if(flag == 1){
@@ -538,12 +549,14 @@ void IBVerbs :: processBlock(){
 		m_blockRequest = NULL;
 		void *task = m_blockTask;
 		m_blockTask = NULL;
-		alpi_task_unblock((struct alpi_task *) task);
+		err = alpi_task_unblock((struct alpi_task *) task);
+		if(err)
+			LOG(1, "Metadata task unblock failed: " << alpi_error_string(err));
 	}
 }
 
 void IBVerbs :: doProgress(){
-	
+	int err;	
 	while(!m_stopProgress){
 		doLocalProgress();
 		doRemoteProgress();
@@ -552,7 +565,9 @@ void IBVerbs :: doProgress(){
 		if(syncRequest.isActive)
 			processSyncRequest();
 
-		alpi_task_waitfor_ns(pollingFrequency*1000, NULL);
+		err = alpi_task_waitfor_ns(pollingFrequency*1000, NULL);
+		if(err)
+			LOG(1, "Polling Task waitfor failed: " << alpi_error_string(err));
 	}
 }
 
@@ -700,6 +715,7 @@ void IBVerbs :: dereg( SlotID id )
 void IBVerbs :: put( SlotID srcSlot, size_t srcOffset, 
 			  int dstPid, SlotID dstSlot, size_t dstOffset, size_t size )
 {
+	int err;
 	const MemorySlot & src = m_memreg.lookup( srcSlot );
 	const MemorySlot & dst = m_memreg.lookup( dstSlot );
 
@@ -718,8 +734,12 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
 
 	struct alpi_task *task;
-	alpi_task_self(&task);
-	alpi_task_events_increase(task, 1);
+	err = alpi_task_self(&task);
+	if(err)
+		LOG(1, "Put task self failed: " << alpi_error_string(err));
+	err = alpi_task_events_increase(task, 1);
+	if(err)
+		LOG(1, "Put counter increase failed: " << alpi_error_string(err));
 	for(int i = 0; i< numMsgs; i++){
 		sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
 		sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
@@ -771,6 +791,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset, 
 			  SlotID dstSlot, size_t dstOffset, size_t size )
 {
+	int err;
 	const MemorySlot & src = m_memreg.lookup( srcSlot );
 	const MemorySlot & dst = m_memreg.lookup( dstSlot );
 
@@ -823,8 +844,12 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	const char * remoteAddr = static_cast<const char *>(src.glob[srcPid].addr);
 
 	struct alpi_task *task;
-	alpi_task_self(&task);
-	alpi_task_events_increase(task, 1);
+	err = alpi_task_self(&task);
+	if(err)
+		LOG(1, "Get task self failed: " << alpi_error_string(err));
+	err = alpi_task_events_increase(task, 1);
+	if(err)
+		LOG(1, "Get counter increase failed: " << alpi_error_string(err));
 
 	sge->addr = reinterpret_cast<uintptr_t>( localAddr );
 	sge->length = 0;
@@ -857,6 +882,7 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t value)
 {
+	int err;
 	const MemorySlot & src = m_memreg.lookup( srcSlot );
 	const MemorySlot & dst = m_memreg.lookup( dstSlot );
 
@@ -870,8 +896,12 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 
 
 	struct alpi_task *task;
-	alpi_task_self(&task);
-	alpi_task_events_increase(task, 1);
+	err = alpi_task_self(&task);
+	if(err)
+		LOG(1, "Atomic fetch&add task self failed: " << alpi_error_string(err));
+	err = alpi_task_events_increase(task, 1);
+	if(err)
+		LOG(1, "Atomic fetch&add counter increase failed: " << alpi_error_string(err));
 
 	atomic_fetch_add(&m_numMsgs, 1);
 	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
@@ -931,6 +961,7 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 			int dstPid, SlotID dstSlot, size_t dstOffset, uint64_t cmp, uint64_t swp)
 {
+	int err;
 	const MemorySlot & src = m_memreg.lookup( srcSlot );
 	const MemorySlot & dst = m_memreg.lookup( dstSlot );
 
@@ -944,8 +975,12 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 
 
 	struct alpi_task *task;
-	alpi_task_self(&task);
-	alpi_task_events_increase(task, 1);
+	err = alpi_task_self(&task);
+	if(err)
+		LOG(1, "Atomic cmp&swp task self failed: " << alpi_error_string(err));
+	err = alpi_task_events_increase(task, 1);
+	if(err)
+		LOG(1, "Atomic cmp&swp counter increase failed: " << alpi_error_string(err));
 
 	atomic_fetch_add(&m_numMsgs, 1);
 	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
@@ -1008,7 +1043,7 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 
 void IBVerbs :: sync( int * vote, int attr )
 {
-	
+	int err;	
 	int sync_mode = attr & LPF_SYNC_MODE;
 	int sync_value = attr & ~(LPF_SYNC_MODE | LPF_SYNC_BARRIER);
 	int sync_barrier = ((attr & LPF_SYNC_BARRIER) != 0) | (sync_mode == LPF_SYNC_DEFAULT);
@@ -1023,9 +1058,13 @@ void IBVerbs :: sync( int * vote, int attr )
 		m_comm.getRequest(&m_blockRequest);
 		m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
 		struct alpi_task *task;
-		alpi_task_self(&task);
+		err = alpi_task_self(&task);
+		if(err)
+			LOG(1, "Metadata task self failed: " << alpi_error_string(err));
 		m_blockTask = (void *)task;
-		alpi_task_block(task);
+		err = alpi_task_block(task);
+		if(err)
+			LOG(1, "Metadata task unblock failed: " << alpi_error_string(err));
 
 		if (voted[0] != 0 ) {
 			vote[0] = voted[0];
@@ -1088,8 +1127,12 @@ void IBVerbs :: sync( int * vote, int attr )
 	syncRequest.withBarrier = sync_barrier;
 	syncRequest.remoteMsgs = remoteMsgs;
 	struct alpi_task *task;
-	alpi_task_self(&task);
-	alpi_task_events_increase(task, 1);
+	err = alpi_task_self(&task);
+	if(err)
+		LOG(1, "Sync task self failed: " << alpi_error_string(err));
+	err = alpi_task_events_increase(task, 1);
+	if(err)
+		LOG(1, "Sync counter increase failed: " << alpi_error_string(err));
 	syncRequest.task = (void *)task;
 	
 	syncRequest.isActive = true;
