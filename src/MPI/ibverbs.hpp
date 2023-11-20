@@ -109,7 +109,7 @@ private:
 		bool	isActive;
 		bool 	withBarrier;
 		int 	remoteMsgs;
-		void *	counter;
+		void *	task;
 		bool	secondPhase;
 		void *	barrierRequest;
 	};
@@ -155,7 +155,7 @@ private:
 	int		m_sync_counter;
 	int * m_recvCounts;
 	void * m_blockRequest;
-	void * m_blockContext;
+	void * m_blockTask;
 
 
 	SparseSet< pid_t >			 m_activePeers;  
