@@ -536,9 +536,9 @@ void IBVerbs :: processBlock(){
 	if(flag == 1){
 		free(m_blockRequest);
 		m_blockRequest = NULL;
-		struct alpi_task *context = (struct alpi_task *)m_blockContext;
+		void *context = m_blockContext;
 		m_blockContext = NULL;
-		alpi_task_unblock(context);
+		alpi_task_unblock((struct alpi_task *) context);
 	}
 }
 
