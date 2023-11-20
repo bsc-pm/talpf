@@ -910,7 +910,7 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 	// since reliable connection guarantees keeps packets in order,
 	// we only need a signal from the last message in the queue
 	sr2.send_flags = IBV_SEND_SIGNALED;
-	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no ATOMIC_FETCH_AND_ADD_WITH_IMM 
+	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no ATOMIC_FETCH_AND_ADD_WITH_IMM 
 	sr2.sg_list = &sge2;
 	sr2.num_sge = 0;
 	sr2.imm_data = m_sync_counter;
@@ -984,7 +984,7 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 	// since reliable connection guarantees keeps packets in order,
 	// we only need a signal from the last message in the queue
 	sr2.send_flags = IBV_SEND_SIGNALED;
-	sr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no ATOMIC_CMP_AND_SWP_WITH_IMM 
+	sr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM; // There is no ATOMIC_CMP_AND_SWP_WITH_IMM 
 	sr2.sg_list = &sge2;
 	sr2.num_sge = 0;
 	sr2.imm_data = m_sync_counter;
