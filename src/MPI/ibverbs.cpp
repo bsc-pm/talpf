@@ -24,7 +24,7 @@
 #include <cstring>
 
 #include <nanos6.h>
-#include <nanos6/library-mode.h>
+#include <nanos6/alpi.h>
 
 #define MAX_POLLING 128
 #define POLL_BATCH 8
@@ -231,7 +231,7 @@ IBVerbs :: IBVerbs( Communication & comm )
 	m_comm.getRequest(&syncRequest.barrierRequest);;
 
 	getEnvPollingFrequency();
-	nanos6_spawn_function(pollingTask, this, endPollingTask, this, "POLLING_TASK");
+	alpi_task_spawn(pollingTask, this, endPollingTask, this, "POLLING_TASK", NULL);
 
 	LOG(3, "Allocated completion queue with " << m_nprocs << " entries.");
 
@@ -452,7 +452,7 @@ void IBVerbs :: doLocalProgress(){
 					error = 1;
 				}
 				else {
-					nanos6_decrease_task_event_counter((void *)wcs[i].wr_id, 1);
+					alpi_task_events_decrease((alpi_task *)wcs[i].wr_id, 1);
 				}
 			}
 		}
@@ -504,7 +504,7 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.secondPhase = false;
 			syncRequest.isActive = false;
 			m_sync_counter++;
-			nanos6_decrease_task_event_counter(counter, 1);
+			alpi_task_events_decrease((struct alpi_task *)counter, 1);
 			
 		}
 	}
@@ -526,7 +526,7 @@ void IBVerbs :: processSyncRequest(){
 			syncRequest.counter = NULL;
 			syncRequest.isActive = false;
 			m_sync_counter++;
-			nanos6_decrease_task_event_counter(counter, 1);
+			alpi_task_events_decrease((struct alpi_task *)counter, 1);
 		}
 	}
 }
@@ -537,9 +537,9 @@ void IBVerbs :: processBlock(){
 	if(flag == 1){
 		free(m_blockRequest);
 		m_blockRequest = NULL;
-		void *context = m_blockContext;
+		struct alpi_task *context = (struct alpi_task *)m_blockContext;
 		m_blockContext = NULL;
-		nanos6_unblock_task(context); 
+		alpi_task_unblock(context);
 	}
 }
 
@@ -553,7 +553,7 @@ void IBVerbs :: doProgress(){
 		if(syncRequest.isActive)
 			processSyncRequest();
 
-		nanos6_wait_for(pollingFrequency);
+		alpi_task_waitfor_ns(pollingFrequency*1000, NULL);
 	}
 }
 
@@ -718,8 +718,9 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 	atomic_fetch_add(&m_numMsgs, 1);
 	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
 
-	void *counter = nanos6_get_current_event_counter(); 
-	nanos6_increase_current_task_event_counter(counter, 1);
+	struct alpi_task *task;
+	alpi_task_self(&task);
+	alpi_task_events_increase(task, 1);
 	for(int i = 0; i< numMsgs; i++){
 		sge = &sges[i]; std::memset(sge, 0, sizeof(ibv_sge));
 		sr = &srs[i]; std::memset(sr, 0, sizeof(ibv_send_wr));
@@ -741,7 +742,7 @@ void IBVerbs :: put( SlotID srcSlot, size_t srcOffset,
 		sr->send_flags = lastMsg ? IBV_SEND_SIGNALED : 0 ;
 		sr->opcode = lastMsg ? IBV_WR_RDMA_WRITE_WITH_IMM : IBV_WR_RDMA_WRITE;
 
-		sr->wr_id = (uint64_t)counter; 
+		sr->wr_id = (uint64_t)(task); 
 
 		sr->sg_list = sge;
 		sr->num_sge = 1;
@@ -822,14 +823,15 @@ void IBVerbs :: get( int srcPid, SlotID srcSlot, size_t srcOffset,
 	const char * localAddr = static_cast<const char *>(dst.glob[m_pid].addr);
 	const char * remoteAddr = static_cast<const char *>(src.glob[srcPid].addr);
 
-	void *counter = nanos6_get_current_event_counter(); 
-	nanos6_increase_current_task_event_counter(counter, 1);
+	struct alpi_task *task;
+	alpi_task_self(&task);
+	alpi_task_events_increase(task, 1);
 
 	sge->addr = reinterpret_cast<uintptr_t>( localAddr );
 	sge->length = 0;
 	sge->lkey = dst.mr->lkey;
 
-	sr->wr_id = (uint64_t)(counter); 
+	sr->wr_id = (uint64_t)(task); 
 	sr->next = NULL;
 	// since reliable connection guarantees keeps packets in order,
 	// we only need a signal from the last message in the queue
@@ -868,8 +870,9 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 	struct ibv_send_wr sr2; std::memset(&sr, 0, sizeof(sr2));
 
 
-	void *counter = nanos6_get_current_event_counter(); 
-	nanos6_increase_current_task_event_counter(counter, 1);
+	struct alpi_task *task;
+	alpi_task_self(&task);
+	alpi_task_events_increase(task, 1);
 
 	atomic_fetch_add(&m_numMsgs, 1);
 	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
@@ -902,7 +905,7 @@ void IBVerbs :: atomic_fetch_and_add(SlotID srcSlot, size_t srcOffset,
 	sge2.length = 0;
 	sge2.lkey = dst.mr->lkey;
 
-	sr2.wr_id = (uint64_t)(counter); 
+	sr2.wr_id = (uint64_t)(task); 
 	sr2.next = NULL;
 	// since reliable connection guarantees keeps packets in order,
 	// we only need a signal from the last message in the queue
@@ -941,8 +944,9 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 	struct ibv_send_wr sr2; std::memset(&sr, 0, sizeof(sr2));
 
 
-	void *counter = nanos6_get_current_event_counter(); 
-	nanos6_increase_current_task_event_counter(counter, 1);
+	struct alpi_task *task;
+	alpi_task_self(&task);
+	alpi_task_events_increase(task, 1);
 
 	atomic_fetch_add(&m_numMsgs, 1);
 	atomic_fetch_add(&m_numMsgsSync[dstPid], 1);
@@ -975,7 +979,7 @@ void IBVerbs :: atomic_cmp_and_swp(SlotID srcSlot, size_t srcOffset,
 	sge2.length = 0;
 	sge2.lkey = dst.mr->lkey;
 
-	sr2.wr_id = (uint64_t)(counter); 
+	sr2.wr_id = (uint64_t)(task); 
 	sr2.next = NULL;
 	// since reliable connection guarantees keeps packets in order,
 	// we only need a signal from the last message in the queue
@@ -1019,8 +1023,10 @@ void IBVerbs :: sync( int * vote, int attr )
 		voted[1] = 0;
 		m_comm.getRequest(&m_blockRequest);
 		m_comm.iallreduceSum(vote, voted, 2, m_blockRequest);
-		m_blockContext = nanos6_get_current_blocking_context();
-		nanos6_block_current_task(m_blockContext);
+		struct alpi_task *task;
+		alpi_task_self(&task);
+		m_blockContext = (void *)task;
+		alpi_task_block(task);
 
 		if (voted[0] != 0 ) {
 			vote[0] = voted[0];
@@ -1082,9 +1088,10 @@ void IBVerbs :: sync( int * vote, int attr )
 	
 	syncRequest.withBarrier = sync_barrier;
 	syncRequest.remoteMsgs = remoteMsgs;
-	void *counter = nanos6_get_current_event_counter(); 
-	nanos6_increase_current_task_event_counter(counter, 1);
-	syncRequest.counter = counter;
+	struct alpi_task *task;
+	alpi_task_self(&task);
+	alpi_task_events_increase(task, 1);
+	syncRequest.counter = (void *)task;
 	
 	syncRequest.isActive = true;
 
